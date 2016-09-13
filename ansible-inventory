@@ -66,13 +66,15 @@ def generate_colors256():
   return color_list
 
 
-def C(word):
+def C(word, word_to_hash=None):
   if not USE_COLORS:
     return word
+  if not word_to_hash:
+    word_to_hash = word
   n=0
-  for c in word:
+  for c in word_to_hash:
     n+=ord(c)
-  n = n*word.__len__()**2
+  n = n*word_to_hash.__len__()**2
   color = COLORS[ n % COLORS.__len__() ]
   return '\x1b[%sm%s\x1b[0m' % (color, word)
 
@@ -393,11 +395,11 @@ class Inventory:
     old_host = self.get_host(alias)
     if not old_host:
       if alias in self.I:
-        return 'Alias %s is an existing group' % C( alias )
+        return 'Alias %s is an existing group' % C( alias, host )
       self.I['_meta']['hostalias'][host] = alias
       return None
     else:
-      return 'Alias %s already in use by %s' % (C(alias), C(old_host))
+      return 'Alias %s already in use by %s' % (C(alias, old_host), C(old_host))
 
   @write
   def add_group(self, group):
@@ -493,7 +495,7 @@ class Inventory:
   def set_alias(self, h_name, alias):
     'Sets or replaces an alias for a host'
     if alias in self.I:
-      return 'Alias %s is an existing group' % C( alias )
+      return 'Alias %s is an existing group' % C( alias, h_name )
     self.I['_meta']['hostalias'][h_name] = alias
     return None
 
@@ -840,7 +842,7 @@ class Console(cmd.Cmd):
         alias = self.inventory.get_alias( host )
 
         if alias:
-          print('aka %s [ ' % C(alias), end='')
+          print('aka %s [ ' % C(alias, host), end='')
         else:
           print('[ ', end='')
         h_vars =  self.inventory.get_host_vars( host )
@@ -954,7 +956,7 @@ class Console(cmd.Cmd):
       if alias:
         msg = self.inventory.add_host( host, alias )
         if not msg:
-          self.__ok('Host %s added with alias %s' % (C(host), C(alias)))
+          self.__ok('Host %s added with alias %s' % (C(host), C(alias, host)))
         else:
           self.__warn(msg)
 
@@ -1060,7 +1062,7 @@ class Console(cmd.Cmd):
 
       if 'new_alias' in args_opt:
         self.inventory.set_alias( host, args_opt['new_alias'] )
-        self.__ok('Host alias %s renamed to %s' % ( C(alias), C(args_opt['new_alias'])))
+        self.__ok('Host alias %s renamed to %s' % ( C(alias, host), C(args_opt['new_alias'], host)))
 
     # EDIT GROUP
     if args_pos[1] == 'group':
