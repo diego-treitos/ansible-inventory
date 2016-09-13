@@ -153,29 +153,34 @@ readline.read_history_file( HISTORY_FILE )
 
 # ( CLASSES
 class json_backend:
+  "Backend class for ansible-inventory that uses a json file for storage"
 
-    def __init__(self, inv_json_path):
-        self.json_path = inv_json_path
-        self.lockfile = '/tmp/.ansible-inventory_json_backend.lock'
+  def __init__(self, inv_json_path):
+    self.json_path = inv_json_path
+    self.lockfile = '/tmp/.ansible-inventory_json_backend.lock'
 
-    def load_inventory(self):
-        if os.path.exists( self.json_path ):
-          with SimpleFlock( self.lockfile, timeout=3 ):
-            with open( self.json_path ) as inv_file:
-                return json.loads( inv_file.read() )
-        else:
-            return {}
+  def load_inventory(self):
+    "Returns a dictionary with the inventory contents as required by Inventory class"
+    if os.path.exists( self.json_path ):
+      with SimpleFlock( self.lockfile, timeout=3 ):
+        with open( self.json_path ) as inv_file:
+          return json.loads( inv_file.read() )
+    else:
+        return {}
 
-    def save_inventory(self, inventory):
-        with SimpleFlock( self.lockfile, timeout=3 ):
-          with open( self.json_path, 'w' ) as inv_file:
-              inv_file.write( json.dumps( inventory ) )
+  def save_inventory(self, inventory):
+    "Saves the inventory from a dictionary with the inventory contents from the Inventory class"
+    with SimpleFlock( self.lockfile, timeout=3 ):
+      with open( self.json_path, 'w' ) as inv_file:
+        inv_file.write( json.dumps( inventory ) )
 
 
 class Inventory:
 
+  # Inventory variable
   I = None
 
+### Internal inventory format
 #{
 #    "databases"   : {
 #        "hosts"   : [ "host1.example.com", "host2.example.com" ],
@@ -205,6 +210,7 @@ class Inventory:
 #    }
 #}
   def write(f):
+    "Decorator for functions that change the inventory. This should grant inventory integrity when several concurrent ansible-inventory sessions"
     def wrapper(s, *args, **kwargs):
       with SimpleFlock( s.lockfile, timeout=3 ):
         s.reload()
@@ -214,6 +220,7 @@ class Inventory:
     return wrapper
 
   def read(f):
+    "Decorator for functions that read, so they use they have the most updated information in case of several concurrent ansible-inventory sessions"
 
     def wrapper(s, *kargs, **kwargs):
       s.reload()
@@ -226,6 +233,7 @@ class Inventory:
     self.lockfile = '/tmp/.ansible-inventory.lock'
 
   def __response(self):
+    "Generates a response structure"
     return {
       'success': False,
       'data': None
@@ -241,9 +249,11 @@ class Inventory:
       self.I['_meta']['hostalias'] = {}
 
   def save(self):
+    "Saves the inventory to persistence backend"
     self.backend.save_inventory( self.I )
 
   def reload(self):
+    "Loads the inventory from the persistence backend"
     self.I = self.backend.load_inventory()
     self.__ensure_inventory_skel()
 
