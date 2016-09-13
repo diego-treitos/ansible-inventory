@@ -1,0 +1,1192 @@
+#!/usr/bin/env python3
+# -*- coding:utf-8 -*-
+# vim: set ts=2 sw=2 sts=2 et:
+
+# ansible-inventory. An Inventory Manager for Ansible
+# Copyright (C) 2016  Diego Blanco <diego.blanco@treitos.com>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, version 3 of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+# ( IMPORTS
+from __future__ import print_function
+from re import fullmatch
+import cmd
+import errno
+import fcntl
+import json
+import os
+import readline
+import signal
+import sys
+import time
+# )
+
+# ( CONFIG
+INVENTORY_PATH = '/tmp/inventory.json'
+HISTORY_FILE = '/tmp/.ansible-inventory_history'
+USE_COLORS=True
+# )
+
+
+# ( AUX
+def generate_colors():
+  color_list = []
+  for style in range( 3 ):
+    for fg in range( 31, 38):
+      color = ';'.join([str(style), str(fg)])
+      color_list.append(color)
+  return color_list
+
+
+def generate_colors256():
+  DARK_COLORS = list(range( 0, 8 )) + list(range( 16, 28 )) + list(range( 52, 76 )) + list(range( 232, 243 ))
+  color_list = []
+  for c_256_n in range( 1, 244 ):
+    if c_256_n not in DARK_COLORS:
+      # Grant all colors have the same string length
+      if c_256_n < 10:
+        c_256_s = '00%d' % c_256_n
+      elif c_256_n < 100:
+        c_256_s = '0%d' % c_256_n
+      else:
+        c_256_s = '%d' % c_256_n
+      color = '38;5;' + c_256_s
+      color_list.append( color )
+  return color_list
+
+
+def C(word):
+  if not USE_COLORS:
+    return word
+  n=0
+  for c in word:
+    n+=ord(c)
+  n = n*word.__len__()**2
+  color = COLORS[ n % COLORS.__len__() ]
+  return '\x1b[%sm%s\x1b[0m' % (color, word)
+
+
+def parseargs( f ):
+    def wrapper(s, arg ):
+        args={ 0: f.__name__.split('do_')[1] }
+        i=0
+        for a in arg.split():
+            i+=1
+            if i>0 and '=' in a:
+                args[i] = tuple(a.split('=', 1))
+            else:
+                args[i] = a
+        return f(s, args)
+    wrapper.__doc__ = f.__doc__
+    return wrapper
+
+
+# SimpleFlock from https://github.com/derpston/python-simpleflock
+class SimpleFlock:
+   """Provides the simplest possible interface to flock-based file locking. Intended for use with the `with` syntax. It will create/truncate/delete the lock file as necessary."""
+
+   def __init__(self, path, timeout = None):
+      self._path = path
+      self._timeout = timeout
+      self._fd = None
+
+   def __enter__(self):
+      self._fd = os.open(self._path, os.O_CREAT)
+      start_lock_search = time.time()
+      while True:
+         try:
+            fcntl.flock(self._fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            # Lock acquired!
+            return
+         except (OSError, IOError) as ex:
+            if ex.errno != errno.EAGAIN: # Resource temporarily unavailable
+               raise
+            elif self._timeout is not None and time.time() > (start_lock_search + self._timeout):
+               # Exceeded the user-specified timeout.
+               raise
+         
+         # TODO It would be nice to avoid an arbitrary sleep here, but spinning
+         # without a delay is also undesirable.
+         time.sleep(0.1)
+
+   def __exit__(self, *args):
+      fcntl.flock(self._fd, fcntl.LOCK_UN)
+      os.close(self._fd)
+      self._fd = None
+
+      # Try to remove the lock file, but don't try too hard because it is
+      # unnecessary. This is mostly to help the user see whether a lock
+      # exists by examining the filesystem.
+      try:
+         os.unlink(self._path)
+      except:
+         pass
+# )
+
+
+# ( GLOBALS
+COLORS = generate_colors256()
+
+C_BASE = '\x1b[1;37m'
+C_FAIL = '\x1b[1;31m'
+C_GOOD = '\x1b[1;32m'
+C_WARN = '\x1b[1;33m'
+C_INFO = '\x1b[1;34m'
+C_RESET = '\x1b[0;0m'
+
+if not os.path.exists( HISTORY_FILE ):
+  open( HISTORY_FILE, 'a').close()
+readline.read_history_file( HISTORY_FILE )
+# )
+
+
+# ( CLASSES
+class json_backend:
+
+    def __init__(self, inv_json_path):
+        self.json_path = inv_json_path
+        self.lockfile = '/tmp/.ansible-inventory_json_backend.lock'
+
+    def load_inventory(self):
+        if os.path.exists( self.json_path ):
+          with SimpleFlock( self.lockfile, timeout=3 ):
+            with open( self.json_path ) as inv_file:
+                return json.loads( inv_file.read() )
+        else:
+            return {}
+
+    def save_inventory(self, inventory):
+        with SimpleFlock( self.lockfile, timeout=3 ):
+          with open( self.json_path, 'w' ) as inv_file:
+              inv_file.write( json.dumps( inventory ) )
+
+
+class Inventory:
+
+  I = None
+
+#{
+#    "databases"   : {
+#        "hosts"   : [ "host1.example.com", "host2.example.com" ],
+#        "vars"    : {
+#            "a"   : true
+#        }
+#    },
+#    "webservers"  : [ "host2.example.com", "host3.example.com" ],
+#    "atlanta"     : {
+#        "hosts"   : [ "host1.example.com", "host4.example.com", "host5.example.com" ],
+#        "vars"    : {
+#            "b"   : false
+#        },
+#        "children": [ "marietta", "5points" ]
+#    },
+#    "marietta"    : [ "host6.example.com" ],
+#    "5points"     : [ "host7.example.com" ]
+#    "_meta" : {
+#       "hostvars" : {
+#          "moocow.example.com"     : { "asdf" : 1234 },
+#          "llama.example.com"      : { "asdf" : 5678 },
+#       }
+#       "hostalias" : {
+#          "moocow.example.com"     : "moocow",
+#          "llama.example.com"      : "llama"
+#       }
+#    }
+#}
+  def write(f):
+    def wrapper(s, *args, **kwargs):
+      with SimpleFlock( s.lockfile, timeout=3 ):
+        s.reload()
+        r = f(s, *args, **kwargs)
+        s.save()
+        return r
+    return wrapper
+
+  def read(f):
+
+    def wrapper(s, *kargs, **kwargs):
+      s.reload()
+      return f(s, *kargs, **kwargs)
+    return wrapper
+
+  def __init__(self, backend):
+    self.backend = backend
+    self.reload()
+    self.lockfile = '/tmp/.ansible-inventory.lock'
+
+  def __response(self):
+    return {
+      'success': False,
+      'data': None
+    }
+
+  def __ensure_inventory_skel(self):
+    'Ensures the basic structure of the inventory is pressent'
+    if '_meta' not in self.I:
+      self.I['_meta'] = {}
+    if 'hostvars' not in self.I['_meta']:
+      self.I['_meta']['hostvars'] = {}
+    if 'hostalias' not in self.I['_meta']:
+      self.I['_meta']['hostalias'] = {}
+
+  def save(self):
+    self.backend.save_inventory( self.I )
+
+  def reload(self):
+    self.I = self.backend.load_inventory()
+    self.__ensure_inventory_skel()
+
+  @read
+  def get_ansible_json(self):
+    'Returns the ansible json'
+    from copy import deepcopy
+    inv = deepcopy( self.I )
+    alias = inv['_meta'].pop( 'hostalias' )
+    for h in alias:
+      a = alias[ h ]
+      inv[ a ] = [ h ]
+    return json.dumps( inv )
+
+  @read
+  def list_hosts(self, h_regex='.*', by_alias=False):
+    'Returns a list of known hosts in the inventory. If regex specified only matching hosts will be returned'
+    hosts = []
+    for g in self.I:
+      if g == '_meta':
+        for h in self.I['_meta']['hostalias']:
+          if by_alias:
+            n = self.get_alias(h)
+          else:
+            n = h
+          if h not in hosts and fullmatch( h_regex, n):
+            hosts.append( h )
+      else:
+        if isinstance( self.I[g], list):
+          gh_list = self.I[g]
+        elif isinstance( self.I[g], dict):
+          gh_list = self.I[g]['hosts']
+        else:
+          gh_list = []
+        for h in gh_list:
+          if by_alias:
+            n = self.get_alias(h)
+          else:
+            n = h
+          if h not in hosts and fullmatch( h_regex, n):
+            hosts.append( h )
+    return hosts
+
+  @read
+  def list_groups(self, g_regex='.*'):
+    'Returns a list of available groups. If g_regex is specified, only matching groups will be returned'
+    groups = []
+    for g in self.I:
+      if g == '_meta':
+        continue
+      if fullmatch( g_regex, g ):
+        groups.append(g)
+    return groups
+
+  @read
+  def get_host(self, alias):
+    'Returns the host asociated with an alias'
+    for h in self.I['_meta']['hostalias']:
+      if self.I['_meta']['hostalias'][h] == alias:
+        return h
+    return None
+
+  @read
+  def get_alias(self, host):
+    'Returns the alias asociated with a host'
+    for h in self.I['_meta']['hostalias']:
+      if h == host:
+        return self.I['_meta']['hostalias'][h]
+    return None
+
+  @read
+  def get_group_vars(self, group):
+    'Returns a dict with the group vars'
+    if group in self.I:
+      if isinstance( self.I[group], dict):
+        if 'vars' in self.I[group]:
+          return self.I[group]['vars']
+    return {}
+
+  @read
+  def get_group_hosts(self, group):
+    'Returns a list of hosts in a group'
+    if group in self.I:
+      if isinstance( self.I[group], list):
+        return self.I[group]
+      if isinstance( self.I[group], dict ):
+        return self.I[group]['hosts']
+    else:
+      return None
+
+  @read
+  def get_group_children(self, group):
+    'Returns the list of subgroups in a group'
+    if group in self.I:
+      if isinstance( self.I[group], dict ) and 'children' in self.I[group]:
+        return self.I[group]['children']
+    return None
+
+  @read
+  def get_group_parent(self, group):
+    'Returns the name of a group parent or None if no parent is found'
+    for g in self.I:
+      if isinstance( self.I[g], dict ) and 'children' in self.I[g] and group in self.I[g]['children']:
+        return g
+    return None
+
+  @read
+  def get_host_vars(self, host):
+    'Returns a dict with the host vars'
+    if host in self.I['_meta']['hostvars']:
+      return self.I['_meta']['hostvars'][host]
+    else:
+      return {}
+
+  @read
+  def get_host_groups(self, host):
+    'Returns a list of groups where a host belongs'
+    groups = []
+    for g in self.I:
+      if g == '_meta':
+        continue
+      if host in self.get_group_hosts(g):
+        groups.append(g)
+    return groups
+
+  @write
+  def add_host_to_group(self, h_name, g_name):
+    'Adds a single host to a single existing group'
+    if isinstance( self.I[ g_name ], list ):
+      if h_name not in self.I[ g_name ]:
+        self.I[ g_name ].append( h_name )
+    elif isinstance( self.I[ g_name ], dict ):
+      if h_name not in self.I[ g_name ]['hosts']:
+        self.I[ g_name ]['hosts'].append( h_name )
+
+  @write
+  def add_host(self, host, alias):
+    'Adds a host with an associated alias'
+    old_host = self.get_host(alias)
+    if not old_host:
+      if alias in self.I:
+        return 'Alias %s is an existing group' % C( alias )
+      self.I['_meta']['hostalias'][host] = alias
+      return None
+    else:
+      return 'Alias %s already in use by %s' % (C(alias), C(old_host))
+
+  @write
+  def add_group(self, group):
+    'Adds a group'
+    if group not in self.I:
+      self.I[ group ] = {
+        'hosts': [],
+        'vars': {},
+        'children': []
+      }
+      return None
+    else:
+      return 'Group %s already exists' % C(group)
+
+  @write
+  def add_group_to_group(self, child, group):
+    'Adds a single group to a single existing group'
+    if isinstance( self.I[group], list):
+      hosts = self.I[group]
+      self.I[group] = {
+        'hosts': hosts,
+        'vars': {},
+        'children': []
+      }
+    elif isinstance( self.I[group], dict) and 'children' not in self.I[group]:
+      self.I[group]['children'] = []
+    if child not in self.I[group]['children']:
+      self.I[group]['children'].append( child )
+
+  @write
+  def add_var_to_group(self, v_name, v_value, group):
+    'Adds a variable a single existing group'
+    if isinstance( self.I[group], list):
+      hosts = self.I[group]
+      self.I[group] = {
+        'hosts': hosts,
+        'vars': {},
+        'children': []
+      }
+    elif isinstance( self.I[group], dict) and 'vars' not in self.I[group]:
+      self.I[group]['vars'] = {}
+    if v_name not in self.I[group]['vars']:
+      self.I[group]['vars'][v_name] = v_value
+
+  @write
+  def add_var_to_host(self, v_name, v_value, host):
+    'Adds a variable a single existing host'
+    if host not in self.I['_meta']['hostvars']:
+      self.I['_meta']['hostvars'][host] = {v_name : v_value}
+    else:
+      self.I['_meta']['hostvars'][host][v_name] = v_value
+
+  @write
+  def rename_host(self, h_name, new_name):
+    'Renames a host'
+    hosts = self.list_hosts()
+    if new_name in hosts:
+      return 'Host %s already exists' % C(new_name)
+    if h_name not in hosts:
+      return 'Host %s does not exist' % C(h_name)
+
+    if h_name in self.I['_meta']['hostvars']:
+      hvars = self.I['_meta']['hostvars'].pop(h_name)
+      self.I['_meta']['hostvars'][new_name] = hvars
+    if h_name in self.I['_meta']['hostalias']:
+      alias = self.I['_meta']['hostalias'].pop(h_name)
+      self.I['_meta']['hostalias'][new_name] = alias
+    for g in self.get_host_groups( h_name ):
+      if isinstance( self.I[g], list ):
+        self.I[g].remove( h_name )
+        self.I[g].append( new_name )
+      elif isinstance( self.I[g], dict):
+        self.I[g]['hosts'].remove( h_name )
+        self.I[g]['hosts'].append( new_name )
+    return None
+
+  @write
+  def rename_host_var(self, v_name, new_name, h_regex):
+    'Renames a variable in a set of hosts matching a regular expression'
+    for h in self.list_hosts():
+      if fullmatch( h_regex, h ) and h in self.I['_meta']['hostvars'] and v_name in self.I['_meta']['hostvars'][h]:
+        v_value = self.I['_meta']['hostvars'][h].pop(v_name)
+        self.I['_meta']['hostvars'][h][new_name] = v_value
+
+  @write
+  def change_host_var(self, v_name, v_value, h_regex):
+    'Changes the value of a variable in the hosts matching a regular expression in case it is defined'
+    for h in self.list_hosts():
+      if fullmatch( h_regex, h ) and h in self.I['_meta']['hostvars'] and v_name in self.I['_meta']['hostvars'][h]:
+        self.I['_meta']['hostvars'][h][v_name] = v_value
+
+  @write
+  def set_alias(self, h_name, alias):
+    'Sets or replaces an alias for a host'
+    if alias in self.I:
+      return 'Alias %s is an existing group' % C( alias )
+    self.I['_meta']['hostalias'][h_name] = alias
+    return None
+
+  @write
+  def rename_group(self, g_name, new_name):
+    'Renames a group'
+    if new_name in self.I:
+      return 'Group %s already exists' % C(new_name)
+    if g_name not in self.I:
+      return 'Group %s does not exist' % C(g_name)
+    g_data = self.I.pop(g_name)
+    self.I[new_name] = g_data
+    return None
+
+  @write
+  def rename_group_var(self, v_name, new_name, g_regex):
+    'Renames a variable in a set of groups matching a regular expression'
+    for g in self.I:
+      if g == '_meta':
+        continue
+      if fullmatch( g_regex, g ) and isinstance( self.I[g], dict) and 'vars' in self.I[g]:
+        if v_name in self.I[g]['vars']:
+          v_value = self.I[g]['vars'].pop(v_name)
+          self.I[g]['vars'][new_name] = v_value
+
+  @write
+  def change_group_var(self, v_name, v_value, g_regex):
+    'Changes the value of a variable in the groups matching a regular expression in case it is defined'
+    for g in self.I:
+      if g == '_meta':
+        continue
+      if fullmatch( g_regex, g ) and isinstance( self.I[g], dict) and 'vars' in self.I[g]:
+        if v_name in self.I[g]['vars']:
+          self.I[g]['vars'][v_name] = v_value
+
+  @write
+  def remove_host(self, h_name, from_groups=[]):
+    'Removes the selected host. If from_groups is provided, the host will only removed from those groups.'
+    if from_groups:
+      groups = from_groups
+    else:
+      groups = self.get_host_groups( h_name )
+      if h_name in self.I['_meta']['hostvars']:
+        self.I['_meta']['hostvars'].pop(h_name)
+      if h_name in self.I['_meta']['hostalias']:
+        self.I['_meta']['hostalias'].pop(h_name)
+
+    for g in groups:
+      g_hosts = self.get_group_hosts( g )
+      if g_hosts and h_name in g_hosts:
+        g_hosts.remove( h_name )
+
+  @write
+  def remove_group(self, g_name, from_groups=[]):
+    'Removes the selected group. If from_groups is provided, the group will only removed from those groups.'
+    if from_groups:
+      for g in from_groups:
+        g_child = self.get_group_children( g )
+        if g_name in g_child:
+          g_child.remove( g_name )
+    else:
+      if g_name in self.I:
+        self.I.pop( g_name )
+
+  @write
+  def remove_host_var(self, v_name, h_name ):
+    'Removes a variable from a host'
+    if h_name in self.I['_meta']['hostvars'] and v_name in self.I['_meta']['hostvars'][h_name]:
+      self.I['_meta']['hostvars'][h_name].pop( v_name )
+
+  @write
+  def remove_group_var(self, v_name, g_name):
+    'Removes a variable from a group'
+    if g_name in self.I and 'vars' in self.I[g_name] and v_name in self.I[g_name]['vars']:
+      self.I[g_name]['vars'].pop( v_name )
+
+
+class Console(cmd.Cmd):
+
+  intro = "Welcome to the Ansible Inventory console. Type ? for help."
+  # We use \001 and \002 to delimit non printable characters so the history completion is not messed up
+  prompt = '\n\001'+C_BASE+"\002¬¬ \001"+C_RESET+'\002'
+  file = None
+
+  def __init__(self, inventory):
+    super(Console, self).__init__()
+    self.inventory = inventory
+    signal.signal(signal.SIGINT, self.__signal_sigint)
+
+  def emptyline(self):
+    pass
+
+  def __close(self):
+    if self.file:
+      self.file.close()
+      self.file = None
+
+  def __signal_sigint(self, signal, frame):
+    print('')
+    self.do_exit(None)
+    sys.exit(0)
+
+  def __validate_args(self, args):
+    n_args = args.keys().__len__()
+
+    args_dict = {
+      'positional': {},
+      'optional': {}
+    }
+
+    pos_i=0
+    for i in range( 0, n_args ):
+      if isinstance(args[i], tuple):
+        args_dict['optional'][ args[i][0] ] = args[i][1]
+      else:
+        args_dict['positional'][ pos_i ] = args[i]
+        pos_i+=1
+
+    cmd = args_dict['positional'][0]
+
+    if n_args < 2:
+      return 'Not enough arguments'
+
+    l2cmd = args_dict['positional'][1]
+    if not isinstance(l2cmd, str) or l2cmd not in ('host', 'group', 'var'):
+      if cmd == 'show' and l2cmd not in ('host', 'group', 'hosts', 'groups'):
+        return 'Wrong subcommand: %s' % l2cmd
+
+    if cmd == 'show':
+      if n_args < 2:
+        return 'Not enough arguments'
+    else:
+      if n_args < 3:
+        return 'Not enough arguments'
+
+    if args_dict['positional'].__len__() >= 3:
+      if args_dict['positional'].__len__() == 3:
+        args[2] = ('name', args_dict['positional'][2])
+        return self.__validate_args( args )
+      else:
+        return 'Invalid argument %s' % args_dict['positional'][3]
+
+    l2cmd_opts = []
+    l2cmd_combs = []
+
+    if cmd == 'add':
+      if l2cmd == 'host':
+        l2cmd_opts = ['name', 'alias', 'to_groups']
+        l2cmd_combs = [
+          ['name', 'alias'],
+          ['name', 'alias', 'to_groups'],
+          ['name', 'to_groups'],
+          ['alias', 'to_groups']
+        ]
+      elif l2cmd == 'group':
+        l2cmd_opts = ['name', 'to_groups']
+        l2cmd_combs = [
+          ['name'],
+          ['name', 'to_groups']
+        ]
+      elif l2cmd == 'var':
+        l2cmd_opts = [ args[2][0], 'to_hosts', 'to_groups']
+        l2cmd_combs = [
+          [ args[2][0], 'to_hosts'],
+          [ args[2][0], 'to_groups']
+        ]
+
+    elif cmd == 'edit':
+      if l2cmd == 'host':
+        l2cmd_opts = ['name', 'alias', 'new_name', 'new_alias']
+        l2cmd_combs = [
+          ['name', 'new_name'],
+          ['alias', 'new_alias']
+        ]
+      elif l2cmd == 'group':
+        l2cmd_opts = ['name', 'new_name']
+        l2cmd_combs = [
+          ['name', 'new_name']
+        ]
+      elif l2cmd == 'var':
+        l2cmd_opts = ['name', 'new_name', 'new_value', 'in_hosts', 'in_groups']
+        l2cmd_combs = [
+          ['name', 'new_name', 'in_hosts'],
+          ['name', 'new_name', 'in_groups'],
+          ['name', 'new_value', 'in_hosts'],
+          ['name', 'new_value', 'in_groups']
+        ]
+
+    elif cmd == 'del':
+      if l2cmd == 'host':
+        l2cmd_opts = ['name', 'alias', 'from_groups']
+        l2cmd_combs = [
+          ['name'],
+          ['alias'],
+          ['name', 'from_groups'],
+          ['alias', 'from_groups']
+        ]
+      elif l2cmd == 'group':
+        l2cmd_opts = ['name', 'from_groups']
+        l2cmd_combs = [
+          ['name'],
+          ['name', 'from_groups']
+        ]
+      elif l2cmd == 'var':
+        l2cmd_opts = ['name', 'from_hosts', 'from_groups']
+        l2cmd_combs = [
+          ['name', 'from_hosts'],
+          ['name', 'from_groups']
+        ]
+
+    elif cmd == 'show':
+      if l2cmd in ['host', 'hosts']:
+        l2cmd_opts = ['name', 'alias']
+        l2cmd_combs = [
+          [],
+          ['name'],
+          ['alias']
+        ]
+      elif l2cmd in ['group', 'groups']:
+        l2cmd_opts = ['name']
+        l2cmd_combs = [
+          [],
+          ['name']
+        ]
+
+    else:
+      return 'Wrong command: %s' % cmd
+
+    if not l2cmd_opts and not l2cmd_combs:
+      return 'Wrong subcommand %s' % l2cmd
+
+    for a in args_dict['optional']:
+      if a not in l2cmd_opts:
+        return 'Invalid argument %s' % a
+    valid=False
+    pos_args = list(args_dict['optional'].keys())
+    pos_args.sort()
+    for c in l2cmd_combs:
+      c.sort()
+      if pos_args == c:
+        valid=True
+    if not valid:
+      return 'Invalid arguments'
+    return args_dict
+
+  def precmd(self, line):
+    if line == 'EOF':
+      print('')
+      self.do_exit(None)
+      sys.exit(0)
+    return line
+
+  def __ok(self, msg):
+    print(C_BASE+"v   "+C_GOOD+'ok '+C_BASE+msg+C_RESET)
+    print('')
+
+  def __info(self, msg):
+    print(C_BASE+"-   "+C_INFO+'info '+C_BASE+msg+C_RESET)
+    print('')
+
+  def __warn(self, msg):
+    print(C_BASE+"~   "+C_WARN+'warning '+C_BASE+msg+C_RESET)
+    print('')
+
+  def __error(self, msg):
+    print(C_BASE+"^   "+C_FAIL+'error '+C_BASE+msg+C_RESET)
+    print('')
+
+  def __confirm(self, msg):
+    print( msg+' [N/y]: ', end='')
+    answer = sys.stdin.readline()
+    if answer.lower() in ('y', 'yes'):
+      return True
+    return False
+
+  def do_exit(self, arg):
+    'Exists Ansible Inventory console'
+    readline.write_history_file( HISTORY_FILE )
+    self.__close()
+    self.__info('Deica logo!')
+    return True
+
+  @parseargs
+  def do_show(self, args):
+    """
+    show host(s) [[name=]HOST_REGEX] [alias=ALIAS_REGEX]
+    show group(s) [[name=]GROUPS_REGEX]
+
+    HOST: Domain name or IP of the host
+    ALIAS: Your custom name for the host
+    VAR_NAME: Variable name
+    VAR_VALUE: Variable value
+    {SOMETHING}_REGEX: Regular expression (i.e.: alias=.* )
+    {SOMETHING}_REGEX_LIST: Comma separated list of regular expressions (i.e.: in_groups=test[1-3],example.*)
+    """
+    args = self.__validate_args( args )
+    if isinstance(args, str):
+      self.__error( args )
+      self.do_help('show')
+      return False
+
+    args_opt = args['optional']
+    args_pos = args['positional']
+
+    alias = None
+    name = None
+    if 'alias' in args_opt:
+      alias = args_opt['alias']
+    if 'name' in args_opt:
+      name = args_opt['name']
+
+    if args_pos[1] in ['host', 'hosts']:
+      if alias:
+        hosts = self.inventory.list_hosts( alias, by_alias=True )
+      elif name:
+        hosts = self.inventory.list_hosts( name )
+      else:
+        hosts = self.inventory.list_hosts()
+
+      max_n_len=0
+      for n in hosts:
+        cn = C(n)
+        if cn.__len__() > max_n_len:
+          max_n_len = cn.__len__()
+      hosts.sort()
+
+      host_line = ' .-%%-%ds ' % max_n_len
+
+      self.__ok('Here is your hosts list')
+      for host in hosts:
+        print( host_line % C(host), end='' )
+        alias = self.inventory.get_alias( host )
+
+        if alias:
+          print('aka %s [ ' % C(alias), end='')
+        else:
+          print('[ ', end='')
+        h_vars =  self.inventory.get_host_vars( host )
+        h_vars_keys = []
+        for v in h_vars:
+          h_vars_keys.append( v )
+        h_vars_keys.sort()
+        for v in h_vars_keys:
+          print( '%s=%s ' % (C(v), h_vars[v]), end='')
+        print(']')
+
+        print(' \'-groups-( ', end='')
+        groups = self.inventory.get_host_groups( host )
+        groups.sort()
+        for g in groups:
+          print( C(g)+' ', end='')
+        print(')\n')
+
+    if args_pos[1] in ['group', 'groups']:
+      if name:
+        groups = self.inventory.list_groups(name)
+      else:
+        groups = self.inventory.list_groups()
+
+      max_n_len=0
+      for n in groups:
+        cn = C(n)
+        if cn.__len__() > max_n_len:
+          max_n_len = cn.__len__()
+      groups.sort()
+
+      group_line = ' .-%%-%ds [ ' % max_n_len
+
+      self.__ok('Here is your groups list')
+      for n in groups:
+        print( group_line % C(n), end='' )
+        g_vars =  self.inventory.get_group_vars( n )
+        for v in g_vars:
+          print( '%s=%s ' % (C(v), g_vars[v]), end='')
+        print(']')
+
+        print(' :-hosts-( ', end='')
+        for c in self.inventory.get_group_hosts( n ):
+          print( C(c)+' ', end='')
+        print(')')
+
+        print(' \'-child-{ ', end='')
+        for h in self.inventory.get_group_children( n ):
+          print( C(h)+' ', end='')
+        print('}\n')
+
+  @parseargs
+  def do_add(self, args):
+    """
+    add host  <[name=]HOST> <alias=ALIAS> [to_groups=GROUP_REGEX_LIST]
+    add host  <[name=]HOST_REGEX> <to_groups=GROUP_REGEX_LIST>
+    add host  <alias=ALIAS_REGEX> <to_groups=GROUP_REGEX_LIST>
+    add group <[name=]GROUP> [to_groups=GROUP_REGEX_LIST]
+    add var   <VAR_NAME=VAR_VALUE> <to_hosts=HOST_REGEX_LIST>
+    add var   <VAR_NAME=VAR_VALUE> <to_groups=GROUP_REGEX_LIST>
+
+    HOST: Domain name or IP of the host
+    ALIAS: Your custom name for the host
+    VAR_NAME: Variable name
+    VAR_VALUE: Variable value
+    {SOMETHING}_REGEX: Regular expression (i.e.: alias=.* )
+    {SOMETHING}_REGEX_LIST: Comma separated list of regular expressions (i.e.: in_groups=test[1-3],example.*)
+    """
+    args = self.__validate_args( args )
+    if isinstance(args, str):
+      self.__error( args )
+      self.do_help('add')
+      return False
+
+    args_opt = args['optional']
+    args_pos = args['positional']
+
+    if 'to_groups' in args_opt:
+      to_groups = args_opt['to_groups'].split(',')
+    else:
+      to_groups = []
+
+    if 'to_hosts' in args_opt:
+      to_hosts = args_opt['to_hosts'].split(',')
+    else:
+      to_hosts = []
+
+    # ADD HOST
+    if args_pos[1] == 'host':
+      host = None
+      alias = None
+
+      if 'name' not in args_opt:
+        host = self.inventory.get_host( args_opt['alias'] )
+      elif 'alias' in args_opt:
+        host = args_opt['name']
+        alias = args_opt['alias']
+      else:
+        host = args_opt['name']
+
+      if to_groups:
+        matching_groups = []
+        for g_regex in to_groups:
+          matching_groups += self.inventory.list_groups( g_regex )
+        for group in matching_groups:
+          self.inventory.add_host_to_group( host, group )
+        self.__ok('Host %s added to groups' % C(host))
+      if alias:
+        msg = self.inventory.add_host( host, alias )
+        if not msg:
+          self.__ok('Host %s added with alias %s' % (C(host), C(alias)))
+        else:
+          self.__info(msg)
+
+    # ADD GROUP
+    elif args_pos[1] == 'group':
+      group = args_opt['name']
+
+      if to_groups:
+        matching_groups = []
+        for g_regex in to_groups:
+          matching_groups += self.inventory.list_groups( g_regex )
+        for g in matching_groups:
+          self.inventory.add_group_to_group( group, g )
+        self.__ok('Group %s added to groups' % C(group))
+      else:
+        msg = self.inventory.add_group( group )
+        if not msg:
+          self.__ok('Group %s added' % C(group))
+        else:
+          self.__info(msg)
+
+    # ADD GROUP
+    elif args_pos[1] == 'var':
+      for v in args_opt:
+        if v not in ['to_hosts', 'to_groups']:
+          v_name = v
+          v_value = args_opt[v]
+
+      if to_groups:
+        matching_groups = []
+        for g_regex in to_groups:
+          matching_groups += self.inventory.list_groups( g_regex )
+        for g in matching_groups:
+          self.inventory.add_var_to_group( v_name, v_value, group )
+        self.__ok('Var %s added to groups with value %s' % ( v_name, v_value ) )
+
+      if to_hosts:
+        matching_hosts = []
+        for h_regex in to_hosts:
+          matching_hosts += self.inventory.list_hosts( h_regex )
+        for host in matching_hosts:
+          self.inventory.add_var_to_host( v_name, v_value, host )
+        self.__ok('Var %s added to hosts with value %s' % ( v_name, v_value ) )
+
+  @parseargs
+  def do_edit(self, args):
+    """
+    edit host  <[name=]HOST> <new_name=NEW_NAME>
+    edit host  <alias=ALIAS> <new_alias=NEW_ALIAS>
+    edit group <[name=]GROUP> <new_name=NEW_NAME>
+    edit var   <[name=]VAR_NAME> <new_name=NEW_NAME> <[in_hosts=HOST_REGEX_LIST | in_groups=GROUP_REGEX_LIST]>
+    edit var   <[name=]VAR_NAME> <new_value=NEW_VALUE> <[in_hosts=HOST_REGEX_LIST | in_groups=GROUP_REGEX_LIST]>
+
+    HOST: Domain name or IP of the host
+    ALIAS: Your custom name for the host
+    VAR_NAME: Variable name
+    VAR_VALUE: Variable value
+    {SOMETHING}_REGEX: Regular expression (i.e.: alias=.* )
+    {SOMETHING}_REGEX_LIST: Comma separated list of regular expressions (i.e.: in_groups=test[1-3],example.*)
+    """
+    args = self.__validate_args( args )
+    if isinstance(args, str):
+      self.__error( args )
+      self.do_help('edit')
+      return False
+
+    args_opt = args['optional']
+    args_pos = args['positional']
+
+    if 'in_groups' in args_opt:
+      in_groups = args_opt['in_groups'].split(',')
+    else:
+      in_groups = []
+
+    if 'in_hosts' in args_opt:
+      in_hosts = args_opt['in_hosts'].split(',')
+    else:
+      in_hosts = []
+
+    # EDIT HOST
+    if args_pos[1] == 'host':
+      if 'name' in args_opt:
+        host = args_opt['name']
+      elif 'alias' in args_opt:
+        host = self.inventory.get_host(args_opt['alias'])
+        alias = args_opt['alias']
+
+      if 'new_name' in args_opt:
+        msg = self.inventory.rename_host( host, args_opt['new_name'] )
+        if msg:
+          self.__info(msg)
+        else:
+          self.__ok('Host %s renamed to %s' % ( C(host), C(args_opt['new_name'])))
+
+      if 'new_alias' in args_opt:
+        self.inventory.set_alias( host, args_opt['new_alias'] )
+        self.__ok('Host alias %s renamed to %s' % ( C(alias), C(args_opt['new_alias'])))
+
+    # EDIT GROUP
+    if args_pos[1] == 'group':
+      g = args_opt['name']
+      msg = self.inventory.rename_group( g, args_opt['new_name'] )
+      if msg:
+        self.__info(msg)
+      else:
+        self.__ok('Group %s renamed to %s' % (g, args_opt['new_name']))
+
+    # EDIT VAR
+    if args_pos[1] == 'var':
+      v_name = args_opt['name']
+      new_name = None
+      new_value = None
+      if 'new_name' in args_opt:
+        new_name = args_opt['new_name']
+      if 'new_value' in args_opt:
+        new_value = args_opt['new_value']
+
+      if in_groups:
+        if new_name:
+          for g_regex in in_groups:
+            self.inventory.rename_group_var(v_name, new_name, g_regex)
+          self.__ok('Variable %s renamed to %s in selected groups' % (C(v_name), C(new_name)))
+        if new_value:
+          self.inventory.change_group_var(v_name, new_value, g_regex)
+          self.__ok('Variable %s changed to %s in selected groups' % (C(v_name), C(new_value)))
+
+      if in_hosts:
+        if new_name:
+          for h_regex in in_hosts:
+            self.inventory.rename_host_var(v_name, new_name, h_regex)
+          self.__ok('Variable %s renamed to %s in selected hosts' % (C(v_name), C(new_name)))
+        if new_value:
+          self.inventory.change_host_var(v_name, new_value, h_regex)
+          self.__ok('Variable %s changed to %s in selected hosts' % (C(v_name), C(new_value)))
+
+  @parseargs
+  def do_del(self, args):
+    """
+    del host  <[name=]HOST_REGEX> [from_groups=GROUP_REGEX_LIST]
+    del host  <alias=ALIAS_REGEX> [from_groups=GROUP_REGEX_LIST]
+    del group <[name=]GROUP> [from_groups=GROUP_REGEX_LIST]
+    del var   <[name=]VAR_NAME> <[from_hosts=HOST_REGEX_LIST | from_groups=GROUP_REGEX_LIST]>
+
+    HOST: Domain name or IP of the host
+    ALIAS: Your custom name for the host
+    VAR_NAME: Variable name
+    VAR_VALUE: Variable value
+    {SOMETHING}_REGEX: Regular expression (i.e.: alias=.* )
+    {SOMETHING}_REGEX_LIST: Comma separated list of regular expressions (i.e.: in_groups=test[1-3],example.*)
+    """
+    args = self.__validate_args( args )
+    if isinstance(args, str):
+      self.__error( args )
+      self.do_help('del')
+      return False
+
+    args_opt = args['optional']
+    args_pos = args['positional']
+
+    if 'from_groups' in args_opt:
+      from_groups = args_opt['from_groups'].split(',')
+    else:
+      from_groups = []
+
+    if 'from_hosts' in args_opt:
+      from_hosts = args_opt['from_hosts'].split(',')
+    else:
+      from_hosts = []
+
+    name = args_opt['name']
+    alias = None
+    if 'alias' in args_opt:
+      alias = args_opt['alias']
+
+    # DEL HOST
+    if args_pos[1] == 'host':
+      if alias and not name:
+        name = self.inventory.get_host( alias )
+      if not from_groups:
+        self.inventory.remove_host( name )
+        self.__ok('Host %s has been removed' % C(name))
+      else:
+        del_groups = []
+        for g_regex in from_groups:
+          gs = self.inventory.list_groups( g_regex )
+          del_groups += gs
+
+        self.__info('The host %s would be removed from the following groups:' % C(name), end='')
+        for g in del_groups:
+          print( ' '+C(g), end='')
+        print('\n')
+        if self.__confirm('Do you want to proceed?'):
+          self.inventory.remove_host( name, from_groups=del_groups )
+          self.__ok('Host %s removed from groups' % C(name))
+
+    # DEL GROUP
+    if args_pos[1] == 'group':
+      if not from_groups:
+        self.inventory.remove_group( name )
+        self.__ok('Group %s has been removed' % C(name))
+      else:
+        del_groups = []
+        for g_regex in from_groups:
+          gs = self.inventory.list_groups( g_regex )
+          del_groups += gs
+
+        self.__info('The group %s would be removed from the following groups:' % C(name), end='')
+        for g in del_groups:
+          print( ' '+C(g), end='')
+        print('\n')
+        if self.__confirm('Do you want to proceed?'):
+          self.inventory.remove_group( name, from_groups=del_groups )
+          self.__ok('Group %s removed from groups' % C(name))
+
+    # DEL VAR
+    if args_pos[1] == 'var':
+      if from_groups:
+        del_groups = []
+        for g_regex in from_groups:
+          gs = self.inventory.list_groups( g_regex )
+          del_groups += gs
+        self.__info('The variable %s would be removed from the following groups:' % C(name), end='')
+        for g in del_groups:
+          print( ' '+C(g), end='')
+        print('\n')
+        if self.__confirm('Do you want to proceed?'):
+          for g in del_groups:
+            self.inventory.remove_group_var( name, g )
+          self.__ok('Variable %s removed from groups' % C(name))
+      elif from_hosts:
+        del_hosts = []
+        for h_regex in from_hosts:
+          hs = self.inventory.list_hosts( h_regex )
+          del_hosts += hs
+        self.__info('The variable %s would be removed from the following hosts:' % C(name), end='')
+        for h in del_hosts:
+          print( ' '+C(h), end='')
+        print('\n')
+        if self.__confirm('Do you want to proceed?'):
+          for h in del_hosts:
+            self.inventory.remove_host_var( name, h )
+          self.__ok('Variable %s removed from hosts' % C(name))
+
+# )
+
+if __name__ == '__main__':
+  inventory = Inventory( json_backend( INVENTORY_PATH ) )
+
+  if sys.argv.__len__() > 1:
+    if sys.argv[1].lower() == '--list':
+      print( inventory.get_ansible_json() )
+      sys.exit( 0 )
+    else:
+      print('Invalid arguments. Only --list allowed.')
+      sys.exit(1)
+
+  console = Console( inventory )
+  console.cmdloop()
