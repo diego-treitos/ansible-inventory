@@ -1052,7 +1052,7 @@ class Console(cmd.Cmd):
       if 'new_name' in args_opt:
         msg = self.inventory.rename_host( host, args_opt['new_name'] )
         if msg:
-          self.__info(msg)
+          self.__warn(msg)
         else:
           self.__ok('Host %s renamed to %s' % ( C(host), C(args_opt['new_name'])))
 
