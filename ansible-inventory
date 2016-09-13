@@ -232,13 +232,6 @@ class Inventory:
     self.reload()
     self.lockfile = '/tmp/.ansible-inventory.lock'
 
-  def __response(self):
-    "Generates a response structure"
-    return {
-      'success': False,
-      'data': None
-    }
-
   def __ensure_inventory_skel(self):
     'Ensures the basic structure of the inventory is pressent'
     if '_meta' not in self.I:
