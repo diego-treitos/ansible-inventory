@@ -832,7 +832,7 @@ class Console(cmd.Cmd):
 
       host_line = ' .-%%-%ds ' % max_n_len
 
-      self.__ok('Here is your hosts list')
+      self.__info('Here is your hosts list')
       for host in hosts:
         print( host_line % C(host), end='' )
         alias = self.inventory.get_alias( host )
@@ -872,7 +872,7 @@ class Console(cmd.Cmd):
 
       group_line = ' .-%%-%ds [ ' % max_n_len
 
-      self.__ok('Here is your groups list')
+      self.__info('Here is your groups list')
       for n in groups:
         print( group_line % C(n), end='' )
         g_vars =  self.inventory.get_group_vars( n )
