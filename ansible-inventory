@@ -385,9 +385,12 @@ class Inventory:
     if isinstance( self.I[ g_name ], list ):
       if h_name not in self.I[ g_name ]:
         self.I[ g_name ].append( h_name )
+        return None
     elif isinstance( self.I[ g_name ], dict ):
       if h_name not in self.I[ g_name ]['hosts']:
         self.I[ g_name ]['hosts'].append( h_name )
+        return None
+    return 'Host %s already in group %s' % ( h_name, g_name )
 
   @write
   def add_host(self, host, alias):
