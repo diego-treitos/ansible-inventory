@@ -582,21 +582,28 @@ class Console(cmd.Cmd):
     signal.signal(signal.SIGINT, self.__signal_sigint)
 
   def emptyline(self):
+    "Override the default from cmd.Cmd that executes last command instead"
     pass
 
   def __close(self):
+    "Close shell file"
     if self.file:
       self.file.close()
       self.file = None
 
   def __signal_sigint(self, signal, frame):
+    "Catch sigint and exit cleanly"
     print('')
     self.do_exit(None)
     sys.exit(0)
 
   def __validate_args(self, args):
+    "Validates the commands and args sent to the shell"
+
+    # Get number of arguments
     n_args = args.keys().__len__()
 
+    # Create initial structure to clasify positional and optional arguments
     args_dict = {
       'positional': {},
       'optional': {}
@@ -610,16 +617,10 @@ class Console(cmd.Cmd):
         args_dict['positional'][ pos_i ] = args[i]
         pos_i+=1
 
+    # Main command
     cmd = args_dict['positional'][0]
 
-    if n_args < 2:
-      return 'Not enough arguments'
-
-    l2cmd = args_dict['positional'][1]
-    if not isinstance(l2cmd, str) or l2cmd not in ('host', 'group', 'var'):
-      if cmd == 'show' and l2cmd not in ('host', 'group', 'hosts', 'groups'):
-        return 'Wrong subcommand: %s' % l2cmd
-
+    # Check number of arguments
     if cmd == 'show':
       if n_args < 2:
         return 'Not enough arguments'
@@ -627,16 +628,24 @@ class Console(cmd.Cmd):
       if n_args < 3:
         return 'Not enough arguments'
 
-    if args_dict['positional'].__len__() >= 3:
-      if args_dict['positional'].__len__() == 3:
-        args[2] = ('name', args_dict['positional'][2])
-        return self.__validate_args( args )
-      else:
-        return 'Invalid argument %s' % args_dict['positional'][3]
+    # Get subcommand (l2cmd) and check it
+    l2cmd = args_dict['positional'][1]
+    if not isinstance(l2cmd, str) or l2cmd not in ('host', 'group', 'var'):
+      if cmd == 'show' and l2cmd not in ('host', 'group', 'hosts', 'groups'):
+        return 'Wrong subcommand: %s' % l2cmd
 
+    # Convert the 3rd positional argument in the "name" optional argument
+    if args_dict['positional'].__len__() == 3:
+      args[2] = ('name', args_dict['positional'][2])
+      return self.__validate_args( args )
+
+    # Check the number of positional arguments
+    if args_dict['positional'].__len__() > 3:
+      return 'Too many positional arguments'
+
+    # Initialize the posible options per command+subcommand and the posible option combinations
     l2cmd_opts = []
     l2cmd_combs = []
-
     if cmd == 'add':
       if l2cmd == 'host':
         l2cmd_opts = ['name', 'alias', 'to_groups']
@@ -723,6 +732,7 @@ class Console(cmd.Cmd):
     if not l2cmd_opts and not l2cmd_combs:
       return 'Wrong subcommand %s' % l2cmd
 
+    # Check optional arguments
     for a in args_dict['optional']:
       if a not in l2cmd_opts:
         return 'Invalid argument %s' % a
@@ -735,6 +745,8 @@ class Console(cmd.Cmd):
         valid=True
     if not valid:
       return 'Invalid arguments'
+
+    # Return the args_dict with the optional and positional arguments
     return args_dict
 
   def precmd(self, line):
@@ -959,7 +971,7 @@ class Console(cmd.Cmd):
         else:
           self.__info(msg)
 
-    # ADD GROUP
+    # ADD VAR
     elif args_pos[1] == 'var':
       for v in args_opt:
         if v not in ['to_hosts', 'to_groups']:
@@ -971,7 +983,7 @@ class Console(cmd.Cmd):
         for g_regex in to_groups:
           matching_groups += self.inventory.list_groups( g_regex )
         for g in matching_groups:
-          self.inventory.add_var_to_group( v_name, v_value, group )
+          self.inventory.add_var_to_group( v_name, v_value, g )
         self.__ok('Var %s added to groups with value %s' % ( v_name, v_value ) )
 
       if to_hosts:
