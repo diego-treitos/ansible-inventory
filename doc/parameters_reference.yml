@@ -1,0 +1,61 @@
+
+
+#XXX: Accepts regex as argument
+#BASE: Default parameter (name=myname == myname)
+---
+- show:
+    - host: # (shows host(s) with host_vars)
+        name: <name> #name=<name> #BASE #XXX 
+        alias: <alias> #alias=<alias> #XXX
+    - group: # (shows group(s) with group_vars)
+        name: <name> #name=<name> #BASE #XXX 
+
+- add:
+    - host:
+        name: <name> #name=<name> #BASE #XXX(if to_groups specified)
+        alias: <alias> #alias=<alias> #XXX(if to_groups specified)
+        to_groups: <group1>[,<group2>[,<group3>[...]]] #to_groups=group1,group2,etc #XXX
+    - group:
+        name: <name> #name=<name> #BASE
+        to_groups: <group1>[,<group2>[,<group3>[...]]] #to_groups=group1,group2,etc #XXX
+    - var:
+        name=value: <name=value> #name=value 
+        to_hosts: <host1>[,<host2>[,<host3>[...]]] #to_hosts=host1,host2,etc #XXX
+        to_groups: <group1>[,<group2>[,<group3>[...]]] #to_groups=group1,group2,etc #XXX
+
+- edit:
+    - host:
+        name: <name> #name=<name> #BASE
+        alias: <alias> #alias=<alias>
+        new_name: <new_name> #new_name=<new_name>
+        new_alias: <new_alias> #new_alias=<new_alias>
+    - group:
+        name: <name> #name=<name> #BASE
+        new_name: <new_name> #new_name=<new_name>
+    - var:
+        name: <name> #name=<name> #BASE #XXX
+        new_name: <new_name> #new_name=<new_name>
+        new_value: <new_value> #new_value=<new_value>
+        in_hosts: <host1>[,<host2>[,<host3>[...]]] #in_hosts=host1,host2,etc #XXX
+        in_groups: <group1>[,<group2>[,<group3>[...]]] #in_groups=group1,group2,etc #XXX
+
+- del:
+    - host:
+        name: <name> #name=<name> #BASE #XXX
+        alias: <alias> #alias=<alias> #XXX
+        from_groups: <group1>[,<group2>[,<group3>[...]]] #from_groups=group1,group2,etc #XXX
+    - group:
+        name: <name> #name=<name> #BASE
+        from_groups: <group1>[,<group2>[,<group3>[...]]] #from_groups=group1,group2,etc #XXX
+    - var:
+        name: <name> #name=<name> #BASE
+        from_hosts: <host1>[,<host2>[,<host3>[...]]] #from_hosts=host1,host2,etc #XXX
+        from_groups: <group1>[,<group2>[,<group3>[...]]] #from_groups=group1,group2,etc #XXX
+
+
+
+#### CMDLINE PARAMETERS
+#
+# --list    :  To be used with ansible
+# --import  :  To import from another "--list" output
+#
