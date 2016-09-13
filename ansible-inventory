@@ -943,15 +943,18 @@ class Console(cmd.Cmd):
         matching_groups = []
         for g_regex in to_groups:
           matching_groups += self.inventory.list_groups( g_regex )
-        for group in matching_groups:
-          self.inventory.add_host_to_group( host, group )
-        self.__ok('Host %s added to groups' % C(host))
+        if not matching_groups:
+          self.__warn('No group matches your selection')
+        else:
+          for group in matching_groups:
+            self.inventory.add_host_to_group( host, group )
+          self.__ok('Host %s added to groups' % C(host))
       if alias:
         msg = self.inventory.add_host( host, alias )
         if not msg:
           self.__ok('Host %s added with alias %s' % (C(host), C(alias)))
         else:
-          self.__info(msg)
+          self.__warn(msg)
 
     # ADD GROUP
     elif args_pos[1] == 'group':
@@ -961,15 +964,18 @@ class Console(cmd.Cmd):
         matching_groups = []
         for g_regex in to_groups:
           matching_groups += self.inventory.list_groups( g_regex )
-        for g in matching_groups:
-          self.inventory.add_group_to_group( group, g )
-        self.__ok('Group %s added to groups' % C(group))
+        if not matching_groups:
+          self.__warn('No group matches your selection')
+        else:
+          for g in matching_groups:
+            self.inventory.add_group_to_group( group, g )
+          self.__ok('Group %s added to groups' % C(group))
       else:
         msg = self.inventory.add_group( group )
         if not msg:
           self.__ok('Group %s added' % C(group))
         else:
-          self.__info(msg)
+          self.__warn(msg)
 
     # ADD VAR
     elif args_pos[1] == 'var':
@@ -982,17 +988,23 @@ class Console(cmd.Cmd):
         matching_groups = []
         for g_regex in to_groups:
           matching_groups += self.inventory.list_groups( g_regex )
-        for g in matching_groups:
-          self.inventory.add_var_to_group( v_name, v_value, g )
-        self.__ok('Var %s added to groups with value %s' % ( v_name, v_value ) )
+        if not matching_groups:
+          self.__warn('No group matches your selection')
+        else:
+          for g in matching_groups:
+            self.inventory.add_var_to_group( v_name, v_value, g )
+          self.__ok('Var %s added to groups with value %s' % ( C(v_name), C(v_value) ) )
 
       if to_hosts:
         matching_hosts = []
         for h_regex in to_hosts:
           matching_hosts += self.inventory.list_hosts( h_regex )
-        for host in matching_hosts:
-          self.inventory.add_var_to_host( v_name, v_value, host )
-        self.__ok('Var %s added to hosts with value %s' % ( v_name, v_value ) )
+        if not matching_hosts:
+          self.__warn('No host matches your selection')
+        else:
+          for host in matching_hosts:
+            self.inventory.add_var_to_host( v_name, v_value, host )
+          self.__ok('Var %s added to hosts with value %s' % ( C(v_name), C(v_value) ) )
 
   @parseargs
   def do_edit(self, args):
