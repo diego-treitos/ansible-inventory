@@ -112,12 +112,12 @@ class SimpleFlock:
             # Lock acquired!
             return
          except (OSError, IOError) as ex:
-            if ex.errno != errno.EAGAIN: # Resource temporarily unavailable
+            if ex.errno != errno.EAGAIN:  # Resource temporarily unavailable
                raise
             elif self._timeout is not None and time.time() > (start_lock_search + self._timeout):
                # Exceeded the user-specified timeout.
                raise
-         
+
          # TODO It would be nice to avoid an arbitrary sleep here, but spinning
          # without a delay is also undesirable.
          time.sleep(0.1)
@@ -777,9 +777,10 @@ class Console(cmd.Cmd):
     print('')
 
   def __confirm(self, msg):
-    print( msg+' [N/y]: ', end='')
+    print(C_BASE+"·   "+C_INFO+'confirm '+C_BASE+msg+' [N/y]: '+C_RESET, end='')
+    sys.stdout.flush()
     answer = sys.stdin.readline()
-    if answer.lower() in ('y', 'yes'):
+    if answer.lower().strip( '\n' ) in ('y', 'yes'):
       return True
     return False
 
@@ -1144,9 +1145,20 @@ class Console(cmd.Cmd):
     if args_pos[1] == 'host':
       if alias and not name:
         name = self.inventory.get_host( alias )
+      hosts = self.inventory.list_hosts( name )
+      hosts.sort()
+      c_hosts = []
+      for h in hosts:
+        c_hosts.append( C( h ) )
       if not from_groups:
-        self.inventory.remove_host( name )
-        self.__ok('Host %s has been removed' % C(name))
+        if not hosts:
+          self.__warn('Host pattern %s does not match any host' % C(name))
+        elif self.__confirm('The following hosts will be permanently removed: %s.\n            Do you want to proceed?' % ', '.join( c_hosts ) ):
+          for h in hosts:
+            self.inventory.remove_host( h )
+          self.__ok('The hosts have been removed')
+        else:
+          return False
       else:
         del_groups = []
         for g_regex in from_groups:
