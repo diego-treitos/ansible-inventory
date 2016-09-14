@@ -252,20 +252,8 @@ class Inventory:
     self.I = self.backend.load_inventory()
     self.__ensure_inventory_skel()
 
-  @read
-  def get_ansible_json(self):
-    'Returns the ansible json'
-    from copy import deepcopy
-    inv = deepcopy( self.I )
-    alias = inv['_meta'].pop( 'hostalias' )
-    for h in alias:
-      a = alias[ h ]
-      inv[ a ] = [ h ]
-    return json.dumps( inv )
-
-  @read
-  def list_hosts(self, h_regex='.*', by_alias=False):
-    'Returns a list of known hosts in the inventory. If regex specified only matching hosts will be returned'
+  def __list_hosts(self, h_regex='.*', by_alias=False):
+    'Internal: Returns a list of known hosts in the inventory. If regex specified only matching hosts will be returned.'
     hosts = []
     for g in self.I:
       if g == '_meta':
@@ -292,9 +280,8 @@ class Inventory:
             hosts.append( h )
     return hosts
 
-  @read
-  def list_groups(self, g_regex='.*'):
-    'Returns a list of available groups. If g_regex is specified, only matching groups will be returned'
+  def __list_groups(self, g_regex='.*'):
+    'Internal: Returns a list of available groups. If g_regex is specified, only matching groups will be returned'
     groups = []
     for g in self.I:
       if g == '_meta':
@@ -303,21 +290,77 @@ class Inventory:
         groups.append(g)
     return groups
 
-  @read
-  def get_host(self, alias):
-    'Returns the host asociated with an alias'
+  def __get_host(self, alias):
+    'Internal: Returns the host asociated with an alias'
     for h in self.I['_meta']['hostalias']:
       if self.I['_meta']['hostalias'][h] == alias:
         return h
     return None
 
-  @read
-  def get_alias(self, host):
-    'Returns the alias asociated with a host'
+  def __get_alias(self, host):
+    'Internal: Returns the alias asociated with a host'
     for h in self.I['_meta']['hostalias']:
       if h == host:
         return self.I['_meta']['hostalias'][h]
     return None
+
+  def __get_group_hosts(self, group):
+    'Internal: Returns a list of hosts in a group'
+    if group in self.I:
+      if isinstance( self.I[group], list):
+        return self.I[group]
+      if isinstance( self.I[group], dict ):
+        return self.I[group]['hosts']
+    else:
+      return None
+
+  def __get_host_groups(self, host):
+    'Internal: Returns a list of groups where a host belongs'
+    groups = []
+    for g in self.I:
+      if g == '_meta':
+        continue
+      if host in self.__get_group_hosts(g):
+        groups.append(g)
+    return groups
+
+  def __get_group_children(self, group):
+    'Internal: Returns the list of subgroups in a group'
+    if group in self.I:
+      if isinstance( self.I[group], dict ) and 'children' in self.I[group]:
+        return self.I[group]['children']
+    return None
+
+  @read
+  def get_ansible_json(self):
+    'Returns the ansible json'
+    from copy import deepcopy
+    inv = deepcopy( self.I )
+    alias = inv['_meta'].pop( 'hostalias' )
+    for h in alias:
+      a = alias[ h ]
+      inv[ a ] = [ h ]
+    return json.dumps( inv )
+
+  @read
+  def list_hosts(self, h_regex='.*', by_alias=False):
+    'Returns a list of known hosts in the inventory. If regex specified only matching hosts will be returned'
+    return self.__list_hosts( h_regex, by_alias )
+
+  @read
+  def list_groups(self, g_regex='.*'):
+    'Returns a list of available groups. If g_regex is specified, only matching groups will be returned'
+    return self.__list_groups( g_regex )
+
+  @read
+  def get_host(self, alias):
+    'Returns the host asociated with an alias'
+    return self.__get_host( alias )
+
+  @read
+  def get_alias(self, host):
+    'Returns the alias asociated with a host'
+    return self.__get_alias( host )
 
   @read
   def get_group_vars(self, group):
@@ -331,21 +374,12 @@ class Inventory:
   @read
   def get_group_hosts(self, group):
     'Returns a list of hosts in a group'
-    if group in self.I:
-      if isinstance( self.I[group], list):
-        return self.I[group]
-      if isinstance( self.I[group], dict ):
-        return self.I[group]['hosts']
-    else:
-      return None
+    return self.__get_group_hosts( group )
 
   @read
   def get_group_children(self, group):
     'Returns the list of subgroups in a group'
-    if group in self.I:
-      if isinstance( self.I[group], dict ) and 'children' in self.I[group]:
-        return self.I[group]['children']
-    return None
+    return self.__get_group_children( group )
 
   @read
   def get_group_parent(self, group):
@@ -366,13 +400,7 @@ class Inventory:
   @read
   def get_host_groups(self, host):
     'Returns a list of groups where a host belongs'
-    groups = []
-    for g in self.I:
-      if g == '_meta':
-        continue
-      if host in self.get_group_hosts(g):
-        groups.append(g)
-    return groups
+    return self.__get_host_groups( host )
 
   @write
   def add_host_to_group(self, h_name, g_name):
@@ -390,9 +418,9 @@ class Inventory:
   @write
   def add_host(self, host, alias):
     'Adds a host with an associated alias'
-    if host in self.list_hosts():
+    if host in self.__list_hosts():
       return 'Host %s already exists' % C( host )
-    old_host = self.get_host(alias)
+    old_host = self.__get_host(alias)
     if not old_host:
       if alias in self.I:
         return 'Alias %s is an existing group' % C( alias, host )
@@ -455,7 +483,7 @@ class Inventory:
   @write
   def rename_host(self, h_name, new_name):
     'Renames a host'
-    hosts = self.list_hosts()
+    hosts = self.__list_hosts()
     if new_name in hosts:
       return 'Host %s already exists' % C(new_name)
     if h_name not in hosts:
@@ -467,7 +495,7 @@ class Inventory:
     if h_name in self.I['_meta']['hostalias']:
       alias = self.I['_meta']['hostalias'].pop(h_name)
       self.I['_meta']['hostalias'][new_name] = alias
-    for g in self.get_host_groups( h_name ):
+    for g in self.__get_host_groups( h_name ):
       if isinstance( self.I[g], list ):
         self.I[g].remove( h_name )
         self.I[g].append( new_name )
@@ -479,7 +507,7 @@ class Inventory:
   @write
   def rename_host_var(self, v_name, new_name, h_regex):
     'Renames a variable in a set of hosts matching a regular expression'
-    for h in self.list_hosts():
+    for h in self.__list_hosts():
       if fullmatch( h_regex, h ) and h in self.I['_meta']['hostvars'] and v_name in self.I['_meta']['hostvars'][h]:
         v_value = self.I['_meta']['hostvars'][h].pop(v_name)
         self.I['_meta']['hostvars'][h][new_name] = v_value
@@ -487,7 +515,7 @@ class Inventory:
   @write
   def change_host_var(self, v_name, v_value, h_regex):
     'Changes the value of a variable in the hosts matching a regular expression in case it is defined'
-    for h in self.list_hosts():
+    for h in self.__list_hosts():
       if fullmatch( h_regex, h ) and h in self.I['_meta']['hostvars'] and v_name in self.I['_meta']['hostvars'][h]:
         self.I['_meta']['hostvars'][h][v_name] = v_value
 
@@ -537,14 +565,14 @@ class Inventory:
     if from_groups:
       groups = from_groups
     else:
-      groups = self.get_host_groups( h_name )
+      groups = self.__get_host_groups( h_name )
       if h_name in self.I['_meta']['hostvars']:
         self.I['_meta']['hostvars'].pop(h_name)
       if h_name in self.I['_meta']['hostalias']:
         self.I['_meta']['hostalias'].pop(h_name)
 
     for g in groups:
-      g_hosts = self.get_group_hosts( g )
+      g_hosts = self.__get_group_hosts( g )
       if g_hosts and h_name in g_hosts:
         g_hosts.remove( h_name )
 
@@ -553,7 +581,7 @@ class Inventory:
     'Removes the selected group. If from_groups is provided, the group will only removed from those groups.'
     if from_groups:
       for g in from_groups:
-        g_child = self.get_group_children( g )
+        g_child = self.__get_group_children( g )
         if g_name in g_child:
           g_child.remove( g_name )
     else:
