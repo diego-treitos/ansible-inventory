@@ -972,6 +972,13 @@ class Console(cmd.Cmd):
       else:
         host = args_opt['name']
 
+      if alias:
+        msg = self.inventory.add_host( host, alias )
+        if not msg:
+          self.__ok('Host %s added with alias %s' % (C(host), C(alias, host)))
+        else:
+          self.__warn(msg)
+
       if to_groups:
         matching_groups = []
         for g_regex in to_groups:
@@ -982,12 +989,6 @@ class Console(cmd.Cmd):
           for group in matching_groups:
             self.inventory.add_host_to_group( host, group )
           self.__ok('Host %s added to groups' % C(host))
-      if alias:
-        msg = self.inventory.add_host( host, alias )
-        if not msg:
-          self.__ok('Host %s added with alias %s' % (C(host), C(alias, host)))
-        else:
-          self.__warn(msg)
 
     # ADD GROUP
     elif args_pos[1] == 'group':
