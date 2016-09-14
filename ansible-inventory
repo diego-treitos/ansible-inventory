@@ -853,6 +853,7 @@ class Console(cmd.Cmd):
     if 'name' in args_opt:
       name = args_opt['name']
 
+    # SHOW HOST
     if args_pos[1] in ['host', 'hosts']:
       if alias:
         hosts = self.inventory.list_hosts( alias, by_alias=True )
@@ -860,6 +861,10 @@ class Console(cmd.Cmd):
         hosts = self.inventory.list_hosts( name )
       else:
         hosts = self.inventory.list_hosts()
+
+      if not hosts:
+        self.__warn('No host matched')
+        return False
 
       max_n_len=0
       for n in hosts:
@@ -895,11 +900,16 @@ class Console(cmd.Cmd):
           print( C(g)+' ', end='')
         print(')\n')
 
+    # SHOW GROUP
     if args_pos[1] in ['group', 'groups']:
       if name:
         groups = self.inventory.list_groups(name)
       else:
         groups = self.inventory.list_groups()
+
+      if not groups:
+        self.__warn('No group matched')
+        return False
 
       max_n_len=0
       for n in groups:
