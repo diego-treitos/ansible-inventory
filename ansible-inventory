@@ -608,6 +608,8 @@ class Console(cmd.Cmd):
   prompt = '\n\001'+C_BASE+"\002¬¬ \001"+C_RESET+'\002'
   file = None
 
+  allowed_commands = ['add', 'show', 'edit', 'del', 'help', 'exit' ]
+
   def __init__(self, inventory):
     super(Console, self).__init__()
     self.inventory = inventory
@@ -786,6 +788,9 @@ class Console(cmd.Cmd):
       print('')
       self.do_exit(None)
       sys.exit(0)
+    if line.split()[0] not in self.allowed_commands:
+      self.__error('Invalid command')
+      return ''
     return line
 
   def __ok(self, msg):
