@@ -4,16 +4,17 @@
 #BASE: Default parameter (name=myname == myname)
 ---
 - show:
-    - host: # (shows host(s) with host_vars)
-        name: <name> #name=<name> #BASE #XXX 
-        alias: <alias> #alias=<alias> #XXX
+    - host: # (shows host(s) with host_vars and groups)
+        name: <name> #name=<name> #BASE #XXX  ( filter by host name )
+        var: <var_name> # var=<var_name> #XXX ( filter by var name )
     - group: # (shows group(s) with group_vars)
         name: <name> #name=<name> #BASE #XXX 
+        var: <var_name> # var=<var_name> #XXX ( filter by var name )
 
 - add:
     - host:
         name: <name> #name=<name> #BASE #XXX(if to_groups specified)
-        alias: <alias> #alias=<alias> #XXX(if to_groups specified)
+        host: <host_ip>[:<host_port>] # host=<host_ip>:<host_port> ( real host ip and port )
         to_groups: <group1>[,<group2>[,<group3>[...]]] #to_groups=group1,group2,etc #XXX
     - group:
         name: <name> #name=<name> #BASE
@@ -26,9 +27,8 @@
 - edit:
     - host:
         name: <name> #name=<name> #BASE
-        alias: <alias> #alias=<alias>
         new_name: <new_name> #new_name=<new_name>
-        new_alias: <new_alias> #new_alias=<new_alias>
+        new_host: <new_host_ip>[:<new_host_port>] # new_host=<host_ip>:<host_port>
     - group:
         name: <name> #name=<name> #BASE
         new_name: <new_name> #new_name=<new_name>
@@ -42,7 +42,6 @@
 - del:
     - host:
         name: <name> #name=<name> #BASE #XXX
-        alias: <alias> #alias=<alias> #XXX
         from_groups: <group1>[,<group2>[,<group3>[...]]] #from_groups=group1,group2,etc #XXX
     - group:
         name: <name> #name=<name> #BASE
