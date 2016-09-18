@@ -184,6 +184,7 @@ class Inventory:
 
 ### Internal inventory format
 #{
+#          "all"   : [ all hosts here ],
 #    "databases"   : {
 #        "hosts"   : [ "host1.example.com", "host2.example.com" ],
 #        "vars"    : {
@@ -235,6 +236,8 @@ class Inventory:
     'Ensures the basic structure of the inventory is pressent'
     if '_meta' not in self.I:
       self.I['_meta'] = {}
+    if 'all' not in self.I:
+      self.I['all'] = []
     if 'hostvars' not in self.I['_meta']:
       self.I['_meta']['hostvars'] = {}
 
@@ -379,6 +382,7 @@ class Inventory:
     if host in self.__list_hosts():
       return 'Host %s already exists' % C( host )
     else:
+      self.I['all'].append( host )
       self.I['_meta']['hostvars'] = {}
       return None
 
