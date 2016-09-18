@@ -6,8 +6,6 @@ The idea is to have a single script that allows you to manage your inventory hos
 
 When you have to change a variable that is in several hosts or groups, or you need to change a host that is in several groups, etc., you need to edit several lines of a static file inventory, which is laborious and error prone. With `ansible-inventory` we try to fix these problems and ease the ansible inventory management.
 
-It also includes the idea of host "alias", which will eventually be translated into an ansible group where the only host present will be the host the alias represents.
-
 ## Configuration
 Currently the `ansible-inventory` configuration is inside the script itself. There are only 3 self explanatory parameters:
 * `INVENTORY_PATH`: The path to the inventory file for the `json` backend, currently the only one implemented.
