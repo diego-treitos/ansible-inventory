@@ -204,10 +204,7 @@ class Inventory:
 #       "hostvars" : {
 #          "moocow.example.com"     : { "asdf" : 1234 },
 #          "llama.example.com"      : { "asdf" : 5678 },
-#       }
-#       "hostalias" : {
-#          "moocow.example.com"     : "moocow",
-#          "llama.example.com"      : "llama"
+#          "xeira"                  : { "ansible_host" : xeira.example.com },
 #       }
 #    }
 #}
@@ -240,8 +237,6 @@ class Inventory:
       self.I['_meta'] = {}
     if 'hostvars' not in self.I['_meta']:
       self.I['_meta']['hostvars'] = {}
-    if 'hostalias' not in self.I['_meta']:
-      self.I['_meta']['hostalias'] = {}
 
   def save(self):
     "Saves the inventory to persistence backend"
@@ -252,31 +247,17 @@ class Inventory:
     self.I = self.backend.load_inventory()
     self.__ensure_inventory_skel()
 
-  def __list_hosts(self, h_regex='.*', by_alias=False):
+  def __list_hosts(self, h_regex='.*'):
     'Internal: Returns a list of known hosts in the inventory. If regex specified only matching hosts will be returned.'
     hosts = []
     for g in self.I:
       if g == '_meta':
-        for h in self.I['_meta']['hostalias']:
-          if by_alias:
-            n = self.get_alias(h)
-          else:
-            n = h
-          if h not in hosts and fullmatch( h_regex, n):
+        for h in self.I['_meta']['hostvars']:
+          if h not in hosts and fullmatch( h_regex, h ):
             hosts.append( h )
       else:
-        if isinstance( self.I[g], list):
-          gh_list = self.I[g]
-        elif isinstance( self.I[g], dict):
-          gh_list = self.I[g]['hosts']
-        else:
-          gh_list = []
-        for h in gh_list:
-          if by_alias:
-            n = self.get_alias(h)
-          else:
-            n = h
-          if h not in hosts and fullmatch( h_regex, n):
+        for h in self.__get_group_hosts( g ):
+          if h not in hosts and fullmatch( h_regex, h ):
             hosts.append( h )
     return hosts
 
@@ -289,20 +270,6 @@ class Inventory:
       if fullmatch( g_regex, g ):
         groups.append(g)
     return groups
-
-  def __get_host(self, alias):
-    'Internal: Returns the host asociated with an alias'
-    for h in self.I['_meta']['hostalias']:
-      if self.I['_meta']['hostalias'][h] == alias:
-        return h
-    return None
-
-  def __get_alias(self, host):
-    'Internal: Returns the alias asociated with a host'
-    for h in self.I['_meta']['hostalias']:
-      if h == host:
-        return self.I['_meta']['hostalias'][h]
-    return None
 
   def __get_group_hosts(self, group):
     'Internal: Returns a list of hosts in a group'
@@ -334,33 +301,24 @@ class Inventory:
   @read
   def get_ansible_json(self):
     'Returns the ansible json'
-    from copy import deepcopy
-    inv = deepcopy( self.I )
-    alias = inv['_meta'].pop( 'hostalias' )
-    for h in alias:
-      a = alias[ h ]
-      inv[ a ] = [ h ]
-    return json.dumps( inv )
+    return json.dumps( self.I )
 
   @read
-  def list_hosts(self, h_regex='.*', by_alias=False):
+  def get_ansible_host_json(self, host):
+    'Returns the ansible json for a host'
+    if host in self.I['hostvars']:
+      return json.dumps( self.I['hostvars'][ host ] )
+    return json.dumps( {} )
+
+  @read
+  def list_hosts(self, h_regex='.*'):
     'Returns a list of known hosts in the inventory. If regex specified only matching hosts will be returned'
-    return self.__list_hosts( h_regex, by_alias )
+    return self.__list_hosts( h_regex )
 
   @read
   def list_groups(self, g_regex='.*'):
     'Returns a list of available groups. If g_regex is specified, only matching groups will be returned'
     return self.__list_groups( g_regex )
-
-  @read
-  def get_host(self, alias):
-    'Returns the host asociated with an alias'
-    return self.__get_host( alias )
-
-  @read
-  def get_alias(self, host):
-    'Returns the alias asociated with a host'
-    return self.__get_alias( host )
 
   @read
   def get_group_vars(self, group):
@@ -416,18 +374,13 @@ class Inventory:
     return 'Host %s already in group %s' % ( h_name, g_name )
 
   @write
-  def add_host(self, host, alias):
-    'Adds a host with an associated alias'
+  def add_host(self, host):
+    'Adds a host'
     if host in self.__list_hosts():
       return 'Host %s already exists' % C( host )
-    old_host = self.__get_host(alias)
-    if not old_host:
-      if alias in self.I:
-        return 'Alias %s is an existing group' % C( alias, host )
-      self.I['_meta']['hostalias'][host] = alias
-      return None
     else:
-      return 'Alias %s already in use by %s' % (C(alias, old_host), C(old_host))
+      self.I['_meta']['hostvars'] = {}
+      return None
 
   @write
   def add_group(self, group):
@@ -492,9 +445,6 @@ class Inventory:
     if h_name in self.I['_meta']['hostvars']:
       hvars = self.I['_meta']['hostvars'].pop(h_name)
       self.I['_meta']['hostvars'][new_name] = hvars
-    if h_name in self.I['_meta']['hostalias']:
-      alias = self.I['_meta']['hostalias'].pop(h_name)
-      self.I['_meta']['hostalias'][new_name] = alias
     for g in self.__get_host_groups( h_name ):
       if isinstance( self.I[g], list ):
         self.I[g].remove( h_name )
@@ -520,11 +470,21 @@ class Inventory:
         self.I['_meta']['hostvars'][h][v_name] = v_value
 
   @write
-  def set_alias(self, h_name, alias):
-    'Sets or replaces an alias for a host'
-    if alias in self.I:
-      return 'Alias %s is an existing group' % C( alias, h_name )
-    self.I['_meta']['hostalias'][h_name] = alias
+  def set_host_host(self, h_name, host):
+    'Sets or replaces a host address for a host'
+    if h_name in self.I['_meta']['hostvars']:
+      self.I['_meta']['hostvars'][h_name]['ansible_host'] = host
+    else:
+      self.I['_meta']['hostvars'][h_name] = { 'ansible_host': host }
+    return None
+
+  @write
+  def set_host_port(self, h_name, port):
+    'Sets or replaces a host address for a host'
+    if h_name in self.I['_meta']['hostvars']:
+      self.I['_meta']['hostvars'][h_name]['ansible_port'] = port
+    else:
+      self.I['_meta']['hostvars'][h_name] = { 'ansible_port': port }
     return None
 
   @write
@@ -568,9 +528,6 @@ class Inventory:
       groups = self.__get_host_groups( h_name )
       if h_name in self.I['_meta']['hostvars']:
         self.I['_meta']['hostvars'].pop(h_name)
-      if h_name in self.I['_meta']['hostalias']:
-        self.I['_meta']['hostalias'].pop(h_name)
-
     for g in groups:
       g_hosts = self.__get_group_hosts( g )
       if g_hosts and h_name in g_hosts:
@@ -682,12 +639,11 @@ class Console(cmd.Cmd):
     l2cmd_combs = []
     if cmd == 'add':
       if l2cmd == 'host':
-        l2cmd_opts = ['name', 'alias', 'to_groups']
+        l2cmd_opts = ['name', 'host', 'to_groups']
         l2cmd_combs = [
-          ['name', 'alias'],
-          ['name', 'alias', 'to_groups'],
+          ['name'],
+          ['name', 'host'],
           ['name', 'to_groups'],
-          ['alias', 'to_groups']
         ]
       elif l2cmd == 'group':
         l2cmd_opts = ['name', 'to_groups']
@@ -704,10 +660,10 @@ class Console(cmd.Cmd):
 
     elif cmd == 'edit':
       if l2cmd == 'host':
-        l2cmd_opts = ['name', 'alias', 'new_name', 'new_alias']
+        l2cmd_opts = ['name', 'new_name', 'new_host']
         l2cmd_combs = [
           ['name', 'new_name'],
-          ['alias', 'new_alias']
+          ['name', 'new_host']
         ]
       elif l2cmd == 'group':
         l2cmd_opts = ['name', 'new_name']
@@ -725,12 +681,10 @@ class Console(cmd.Cmd):
 
     elif cmd == 'del':
       if l2cmd == 'host':
-        l2cmd_opts = ['name', 'alias', 'from_groups']
+        l2cmd_opts = ['name', 'from_groups']
         l2cmd_combs = [
           ['name'],
-          ['alias'],
           ['name', 'from_groups'],
-          ['alias', 'from_groups']
         ]
       elif l2cmd == 'group':
         l2cmd_opts = ['name', 'from_groups']
@@ -747,11 +701,10 @@ class Console(cmd.Cmd):
 
     elif cmd == 'show':
       if l2cmd in ['host', 'hosts']:
-        l2cmd_opts = ['name', 'alias']
+        l2cmd_opts = ['name']
         l2cmd_combs = [
           [],
           ['name'],
-          ['alias']
         ]
       elif l2cmd in ['group', 'groups']:
         l2cmd_opts = ['name']
@@ -827,14 +780,13 @@ class Console(cmd.Cmd):
   @parseargs
   def do_show(self, args):
     """
-    show host(s) [[name=]HOST_REGEX] [alias=ALIAS_REGEX]
+    show host(s) [[name=]HOST_REGEX]
     show group(s) [[name=]GROUPS_REGEX]
 
     HOST: Domain name or IP of the host
-    ALIAS: Your custom name for the host
     VAR_NAME: Variable name
     VAR_VALUE: Variable value
-    {SOMETHING}_REGEX: Regular expression (i.e.: alias=.* )
+    {SOMETHING}_REGEX: Regular expression (i.e.: name=test_.* )
     {SOMETHING}_REGEX_LIST: Comma separated list of regular expressions (i.e.: in_groups=test[1-3],example.*)
     """
     args = self.__validate_args( args )
@@ -846,18 +798,13 @@ class Console(cmd.Cmd):
     args_opt = args['optional']
     args_pos = args['positional']
 
-    alias = None
     name = None
-    if 'alias' in args_opt:
-      alias = args_opt['alias']
     if 'name' in args_opt:
       name = args_opt['name']
 
     # SHOW HOST
     if args_pos[1] in ['host', 'hosts']:
-      if alias:
-        hosts = self.inventory.list_hosts( alias, by_alias=True )
-      elif name:
+      if name:
         hosts = self.inventory.list_hosts( name )
       else:
         hosts = self.inventory.list_hosts()
@@ -878,12 +825,8 @@ class Console(cmd.Cmd):
       self.__info('Here is your hosts list')
       for host in hosts:
         print( host_line % C(host), end='' )
-        alias = self.inventory.get_alias( host )
 
-        if alias:
-          print('aka %s [ ' % C(alias, host), end='')
-        else:
-          print('[ ', end='')
+        print('[ ', end='')
         h_vars =  self.inventory.get_host_vars( host )
         h_vars_keys = []
         for v in h_vars:
@@ -941,18 +884,16 @@ class Console(cmd.Cmd):
   @parseargs
   def do_add(self, args):
     """
-    add host  <[name=]HOST> <alias=ALIAS> [to_groups=GROUP_REGEX_LIST]
+    add host  <[name=]HOST> [host=<host>[:<host_port>]]
     add host  <[name=]HOST_REGEX> <to_groups=GROUP_REGEX_LIST>
-    add host  <alias=ALIAS_REGEX> <to_groups=GROUP_REGEX_LIST>
     add group <[name=]GROUP> [to_groups=GROUP_REGEX_LIST]
     add var   <VAR_NAME=VAR_VALUE> <to_hosts=HOST_REGEX_LIST>
     add var   <VAR_NAME=VAR_VALUE> <to_groups=GROUP_REGEX_LIST>
 
     HOST: Domain name or IP of the host
-    ALIAS: Your custom name for the host
     VAR_NAME: Variable name
     VAR_VALUE: Variable value
-    {SOMETHING}_REGEX: Regular expression (i.e.: alias=.* )
+    {SOMETHING}_REGEX: Regular expression (i.e.: name=test_.* )
     {SOMETHING}_REGEX_LIST: Comma separated list of regular expressions (i.e.: in_groups=test[1-3],example.*)
     """
     args = self.__validate_args( args )
@@ -976,25 +917,30 @@ class Console(cmd.Cmd):
 
     # ADD HOST
     if args_pos[1] == 'host':
+      name = args_opt['name']
       host = None
-      alias = None
+      port = None
 
-      if 'name' not in args_opt:
-        host = self.inventory.get_host( args_opt['alias'] )
-      elif 'alias' in args_opt:
-        host = args_opt['name']
-        alias = args_opt['alias']
-      else:
-        host = args_opt['name']
+      if 'host' in args_opt:
+        if ':' in args_opt['host']:
+          host, port = args_opt['host'].split(':')
+        else:
+          host = args_opt['host']
 
-      if alias:
-        msg = self.inventory.add_host( host, alias )
+      if not to_groups:
+        msg = self.inventory.add_host( name )
         if not msg:
-          self.__ok('Host %s added with alias %s' % (C(host), C(alias, host)))
+          self.__ok('Host %s added' % C(name))
         else:
           self.__warn(msg)
+          return False
 
-      if to_groups:
+        if host:
+          self.inventory.set_host_host( name, host )
+        if port:
+          self.inventory.set_host_port( name, port )
+
+      else:
         matching_groups = []
         for g_regex in to_groups:
           matching_groups += self.inventory.list_groups( g_regex )
@@ -1002,8 +948,8 @@ class Console(cmd.Cmd):
           self.__warn('No group matches your selection')
         else:
           for group in matching_groups:
-            self.inventory.add_host_to_group( host, group )
-          self.__ok('Host %s added to groups' % C(host))
+            self.inventory.add_host_to_group( name, group )
+          self.__ok('Host %s added to groups' % C(name))
 
     # ADD GROUP
     elif args_pos[1] == 'group':
@@ -1059,16 +1005,15 @@ class Console(cmd.Cmd):
   def do_edit(self, args):
     """
     edit host  <[name=]HOST> <new_name=NEW_NAME>
-    edit host  <alias=ALIAS> <new_alias=NEW_ALIAS>
+    edit host  <[name=]HOST> <new_host=NEW_HOST>
     edit group <[name=]GROUP> <new_name=NEW_NAME>
     edit var   <[name=]VAR_NAME> <new_name=NEW_NAME> <[in_hosts=HOST_REGEX_LIST | in_groups=GROUP_REGEX_LIST]>
     edit var   <[name=]VAR_NAME> <new_value=NEW_VALUE> <[in_hosts=HOST_REGEX_LIST | in_groups=GROUP_REGEX_LIST]>
 
     HOST: Domain name or IP of the host
-    ALIAS: Your custom name for the host
     VAR_NAME: Variable name
     VAR_VALUE: Variable value
-    {SOMETHING}_REGEX: Regular expression (i.e.: alias=.* )
+    {SOMETHING}_REGEX: Regular expression (i.e.: name=test_.* )
     {SOMETHING}_REGEX_LIST: Comma separated list of regular expressions (i.e.: in_groups=test[1-3],example.*)
     """
     args = self.__validate_args( args )
@@ -1092,22 +1037,27 @@ class Console(cmd.Cmd):
 
     # EDIT HOST
     if args_pos[1] == 'host':
-      if 'name' in args_opt:
-        host = args_opt['name']
-      elif 'alias' in args_opt:
-        host = self.inventory.get_host(args_opt['alias'])
-        alias = args_opt['alias']
+      name = args_opt['name']
 
       if 'new_name' in args_opt:
-        msg = self.inventory.rename_host( host, args_opt['new_name'] )
+        msg = self.inventory.rename_host( name, args_opt['new_name'] )
         if msg:
           self.__warn(msg)
         else:
-          self.__ok('Host %s renamed to %s' % ( C(host), C(args_opt['new_name'])))
+          self.__ok('Host %s renamed to %s' % ( C(name), C(args_opt['new_name'])))
 
-      if 'new_alias' in args_opt:
-        self.inventory.set_alias( host, args_opt['new_alias'] )
-        self.__ok('Host alias %s renamed to %s' % ( C(alias, host), C(args_opt['new_alias'], host)))
+      if 'new_host' in args_opt:
+        if ':' in args_opt['new_host']:
+          host, port = args_opt['new_host'].split(':')
+        else:
+          host = args_opt['new_host']
+          port = None
+
+        if host:
+          self.inventory.set_host_host( name, host )
+        if port:
+          self.inventory.set_host_port( name, port )
+        self.__ok('Host address for %s changed to %s' % ( C(name), C(args_opt['new_host'])))
 
     # EDIT GROUP
     if args_pos[1] == 'group':
@@ -1150,15 +1100,13 @@ class Console(cmd.Cmd):
   def do_del(self, args):
     """
     del host  <[name=]HOST_REGEX> [from_groups=GROUP_REGEX_LIST]
-    del host  <alias=ALIAS_REGEX> [from_groups=GROUP_REGEX_LIST]
     del group <[name=]GROUP> [from_groups=GROUP_REGEX_LIST]
     del var   <[name=]VAR_NAME> <[from_hosts=HOST_REGEX_LIST | from_groups=GROUP_REGEX_LIST]>
 
     HOST: Domain name or IP of the host
-    ALIAS: Your custom name for the host
     VAR_NAME: Variable name
     VAR_VALUE: Variable value
-    {SOMETHING}_REGEX: Regular expression (i.e.: alias=.* )
+    {SOMETHING}_REGEX: Regular expression (i.e.: name=test_.* )
     {SOMETHING}_REGEX_LIST: Comma separated list of regular expressions (i.e.: in_groups=test[1-3],example.*)
     """
     args = self.__validate_args( args )
@@ -1181,14 +1129,9 @@ class Console(cmd.Cmd):
       from_hosts = []
 
     name = args_opt['name']
-    alias = None
-    if 'alias' in args_opt:
-      alias = args_opt['alias']
 
     # DEL HOST
     if args_pos[1] == 'host':
-      if alias and not name:
-        name = self.inventory.get_host( alias )
       hosts = self.inventory.list_hosts( name )
       hosts.sort()
       c_hosts = []
