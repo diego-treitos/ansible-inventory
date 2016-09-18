@@ -824,7 +824,7 @@ class Console(cmd.Cmd):
           max_n_len = cn.__len__()
       hosts.sort()
 
-      host_line = ' .-%%-%ds ' % max_n_len
+      host_line = ' ╭╴%%-%ds ' % max_n_len
 
       self.__info('Here is your hosts list')
       for host in hosts:
@@ -840,7 +840,7 @@ class Console(cmd.Cmd):
           print( '%s=%s ' % (C(v), h_vars[v]), end='')
         print(']')
 
-        print(' \'-groups-( ', end='')
+        print(' ╰╴groups╶( ', end='')
         groups = self.inventory.get_host_groups( host )
         groups.sort()
         for g in groups:
@@ -865,7 +865,7 @@ class Console(cmd.Cmd):
           max_n_len = cn.__len__()
       groups.sort()
 
-      group_line = ' .-%%-%ds [ ' % max_n_len
+      group_line = ' ╭╴%%-%ds [ ' % max_n_len
 
       self.__info('Here is your groups list')
       for n in groups:
@@ -875,12 +875,12 @@ class Console(cmd.Cmd):
           print( '%s=%s ' % (C(v), g_vars[v]), end='')
         print(']')
 
-        print(' :-hosts-( ', end='')
+        print(' ├╴hosts╶( ', end='')
         for c in self.inventory.get_group_hosts( n ):
           print( C(c)+' ', end='')
         print(')')
 
-        print(' \'-child-{ ', end='')
+        print(' ╰╴child╶{ ', end='')
         for h in self.inventory.get_group_children( n ):
           print( C(h)+' ', end='')
         print('}\n')
