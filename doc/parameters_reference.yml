@@ -55,6 +55,7 @@
 
 #### CMDLINE PARAMETERS
 #
-# --list    :  To be used with ansible
-# --import  :  To import from another "--list" output
+# --list        :  To be used with ansible
+# --host <host> :  To be used with ansible
+# --import      :  To import from another "--list" output
 #
