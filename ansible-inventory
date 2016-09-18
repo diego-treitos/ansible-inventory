@@ -299,7 +299,7 @@ class Inventory:
     if group in self.I:
       if isinstance( self.I[group], dict ) and 'children' in self.I[group]:
         return self.I[group]['children']
-    return None
+    return []
 
   @read
   def get_ansible_json(self):
