@@ -306,8 +306,8 @@ class Inventory:
   @read
   def get_ansible_host_json(self, host):
     'Returns the ansible json for a host'
-    if host in self.I['hostvars']:
-      return json.dumps( self.I['hostvars'][ host ] )
+    if host in self.I['_meta']['hostvars']:
+      return json.dumps( self.I['_meta']['hostvars'][ host ] )
     return json.dumps( {} )
 
   @read
@@ -1217,8 +1217,12 @@ if __name__ == '__main__':
     if sys.argv[1].lower() == '--list':
       print( inventory.get_ansible_json() )
       sys.exit( 0 )
+    if sys.argv.__len__() == 3 and sys.argv[1].lower() == '--host':
+      host = sys.argv[2]
+      print( inventory.get_ansible_host_json(host) )
+      sys.exit( 0 )
     else:
-      print('Invalid arguments. Only --list allowed.')
+      print('Invalid arguments.')
       sys.exit(1)
 
   console = Console( inventory )
