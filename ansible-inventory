@@ -50,9 +50,9 @@ def generate_colors():
 
 
 def generate_colors256():
-  DARK_COLORS = list(range( 0, 8 )) + list(range( 16, 28 )) + list(range( 52, 76 )) + list(range( 232, 243 ))
+  DARK_COLORS = list(range( 0, 8 )) + list(range( 16, 28 )) + list(range( 52, 76 )) + list(range( 232, 250 ))
   color_list = []
-  for c_256_n in range( 1, 244 ):
+  for c_256_n in range( 1, 255 ):
     if c_256_n not in DARK_COLORS:
       # Grant all colors have the same string length
       if c_256_n < 10:
