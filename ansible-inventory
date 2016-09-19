@@ -383,7 +383,7 @@ class Inventory:
       return 'Host %s already exists' % C( host )
     else:
       self.I['all'].append( host )
-      self.I['_meta']['hostvars'] = {}
+      self.I['_meta']['hostvars'][host] = {}
       return None
 
   @write
