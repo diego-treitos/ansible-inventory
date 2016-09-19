@@ -1156,7 +1156,7 @@ class Console(cmd.Cmd):
           gs = self.inventory.list_groups( g_regex )
           del_groups += gs
 
-        self.__info('The host %s would be removed from the following groups:' % C(name), end='')
+        self.__info('The host %s would be removed from the following groups:' % C(name))
         for g in del_groups:
           print( ' '+C(g), end='')
         print('\n')
@@ -1175,7 +1175,7 @@ class Console(cmd.Cmd):
           gs = self.inventory.list_groups( g_regex )
           del_groups += gs
 
-        self.__info('The group %s would be removed from the following groups:' % C(name), end='')
+        self.__info('The group %s would be removed from the following groups:' % C(name))
         for g in del_groups:
           print( ' '+C(g), end='')
         print('\n')
@@ -1190,7 +1190,7 @@ class Console(cmd.Cmd):
         for g_regex in from_groups:
           gs = self.inventory.list_groups( g_regex )
           del_groups += gs
-        self.__info('The variable %s would be removed from the following groups:' % C(name), end='')
+        self.__info('The variable %s would be removed from the following groups:' % C(name))
         for g in del_groups:
           print( ' '+C(g), end='')
         print('\n')
@@ -1203,7 +1203,7 @@ class Console(cmd.Cmd):
         for h_regex in from_hosts:
           hs = self.inventory.list_hosts( h_regex )
           del_hosts += hs
-        self.__info('The variable %s would be removed from the following hosts:' % C(name), end='')
+        self.__info('The variable %s would be removed from the following hosts:' % C(name))
         for h in del_hosts:
           print( ' '+C(h), end='')
         print('\n')
