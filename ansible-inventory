@@ -282,7 +282,7 @@ class Inventory:
       if isinstance( self.I[group], dict ):
         return self.I[group]['hosts']
     else:
-      return None
+      return []
 
   def __get_host_groups(self, host):
     'Internal: Returns a list of groups where a host belongs'
@@ -630,7 +630,7 @@ class Console(cmd.Cmd):
     # Get subcommand (l2cmd) and check it
     l2cmd = args_dict['positional'][1]
     if not isinstance(l2cmd, str) or l2cmd not in ('host', 'group', 'var'):
-      if cmd == 'show' and l2cmd not in ('host', 'group', 'hosts', 'groups'):
+      if cmd == 'show' and l2cmd not in ('host', 'group', 'hosts', 'groups', 'tree'):
         return 'Wrong subcommand: %s' % l2cmd
 
     # Convert the 3rd positional argument in the "name" optional argument
@@ -720,6 +720,11 @@ class Console(cmd.Cmd):
           [],
           ['name']
         ]
+      elif l2cmd in ['tree']:
+        l2cmd_opts = ['name']
+        l2cmd_combs = [
+          ['name']
+        ]
 
     else:
       return 'Wrong command: %s' % cmd
@@ -785,11 +790,49 @@ class Console(cmd.Cmd):
     self.__info('Deica logo!')
     return True
 
+  def __print_group_tree(self, group, level=0, last_group=False):
+      hosts = self.inventory.get_group_hosts( group )
+      hosts.sort()
+      if hosts:
+        last_host = hosts[-1]
+      child = self.inventory.get_group_children( group )
+      child.sort()
+      if child:
+        last_child = child[-1]
+
+      if hosts or child:
+        fork = '┬'
+      else:
+        fork = '─'
+
+      if level == 0:
+        print('\n ╭─[%s]' % C( group ))
+      else:
+        print(' │'*level)
+        print(' │'*(level-1), end='')
+        if last_group:
+          print(' ╰', end='')
+        else:
+          print(' ├', end='')
+        print('─%s─[%s]' % (fork, C( group )) )
+
+      for h in hosts:
+        print(' │'*level, end='')
+        if h == last_host and not child:
+          print(' ╰', end='' )
+        else:
+          print(' ├', end='' )
+        print('╴%s' % C( h ))
+
+      for g in child:
+        self.__print_group_tree( g, level+1, last_group=last_child==g )
+
   @parseargs
   def do_show(self, args):
     """
     show host(s) [[name=]HOST_REGEX]
     show group(s) [[name=]GROUPS_REGEX]
+    show tree [[name=]GROUP]
 
     HOST: Domain name or IP of the host
     VAR_NAME: Variable name
@@ -888,6 +931,14 @@ class Console(cmd.Cmd):
         for h in self.inventory.get_group_children( n ):
           print( C(h)+' ', end='')
         print('}\n')
+
+    # SHOW TREE
+    if args_pos[1] == 'tree':
+      if name not in self.inventory.list_groups(name):
+        self.__warn('No group matched')
+        return False
+      self.__info('Here is the group tree for %s' % C( name ))
+      self.__print_group_tree( name )
 
   @parseargs
   def do_add(self, args):

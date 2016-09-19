@@ -7,10 +7,10 @@
     - host: # (shows host(s) with host_vars and groups)
         name: <name> #name=<name> #BASE #XXX  ( filter by host name )
         var: <var_name> # var=<var_name> #XXX ( filter by var name ) TODO
-        in_group: <group> #in_group=group1,group2,etc #XXX ( filter by hosts inside a group and its children ) TODO
     - group: # (shows group(s) with group_vars)
         name: <name> #name=<name> #BASE #XXX 
         var: <var_name> # var=<var_name> #XXX ( filter by var name ) TODO
+    - tree: <name> #name=<name> #BASE ( show group tree )
 
 - add:
     - host:
