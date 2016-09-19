@@ -1021,6 +1021,10 @@ class Console(cmd.Cmd):
         if not matching_groups:
           self.__warn('No group matches your selection')
         else:
+          # Add child group to normal groups if it does not exist
+          if group not in self.inventory.list_groups():
+            self.inventory.add_group( group )
+          # Add child group as child to matching groups
           for g in matching_groups:
             self.inventory.add_group_to_group( group, g )
           self.__ok('Group %s added to groups' % C(group))
