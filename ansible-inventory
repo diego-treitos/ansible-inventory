@@ -844,7 +844,7 @@ class Console(cmd.Cmd):
           print( '%s=%s ' % (C(v), h_vars[v]), end='')
         print(']')
 
-        print(' ╰╴groups╶( ', end='')
+        print(' ╰──╴groups╶( ', end='')
         groups = self.inventory.get_host_groups( host )
         groups.sort()
         for g in groups:
@@ -879,12 +879,12 @@ class Console(cmd.Cmd):
           print( '%s=%s ' % (C(v), g_vars[v]), end='')
         print(']')
 
-        print(' ├╴hosts╶( ', end='')
+        print(' ├──╴hosts╶( ', end='')
         for c in self.inventory.get_group_hosts( n ):
           print( C(c)+' ', end='')
         print(')')
 
-        print(' ╰╴child╶{ ', end='')
+        print(' ╰──╴child╶{ ', end='')
         for h in self.inventory.get_group_children( n ):
           print( C(h)+' ', end='')
         print('}\n')
