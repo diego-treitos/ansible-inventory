@@ -546,8 +546,12 @@ class Inventory:
         if g_name in g_child:
           g_child.remove( g_name )
     else:
+      if g_name == 'all':
+        return 'Group %s cannot be removed' % C('all')
       if g_name in self.I:
         self.I.pop( g_name )
+      else:
+        return 'Group %s does not exist.' % C(g_name)
 
   @write
   def remove_host_var(self, v_name, h_name ):
@@ -1167,8 +1171,24 @@ class Console(cmd.Cmd):
     # DEL GROUP
     if args_pos[1] == 'group':
       if not from_groups:
-        self.inventory.remove_group( name )
-        self.__ok('Group %s has been removed' % C(name))
+        groups = self.inventory.list_groups( name )
+        groups.sort()
+        c_groups = []
+        for g in groups:
+          c_groups.append( C( g ) )
+        if not groups:
+          self.__warn('Group pattern %s does not match any group' % C(name))
+        elif self.__confirm('The following groups will be permanently removed: %s.\n            Do you want to proceed?' % ', '.join( c_groups ) ):
+          some_error = False
+          for g in groups:
+            msg = self.inventory.remove_group( g )
+            if msg:
+              some_error = True
+              self.__warn( msg )
+          if not some_error:
+            self.__ok('The groups have been removed')
+        else:
+          return False
       else:
         del_groups = []
         for g_regex in from_groups:
