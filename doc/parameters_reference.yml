@@ -44,7 +44,7 @@
         name: <name> #name=<name> #BASE #XXX
         from_groups: <group1>[,<group2>[,<group3>[...]]] #from_groups=group1,group2,etc #XXX
     - group:
-        name: <name> #name=<name> #BASE
+        name: <name> #name=<name> #BASE #XXX
         from_groups: <group1>[,<group2>[,<group3>[...]]] #from_groups=group1,group2,etc #XXX
     - var:
         name: <name> #name=<name> #BASE

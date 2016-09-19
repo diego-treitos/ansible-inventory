@@ -1108,7 +1108,7 @@ class Console(cmd.Cmd):
   def do_del(self, args):
     """
     del host  <[name=]HOST_REGEX> [from_groups=GROUP_REGEX_LIST]
-    del group <[name=]GROUP> [from_groups=GROUP_REGEX_LIST]
+    del group <[name=]GROUP_REGEX> [from_groups=GROUP_REGEX_LIST]
     del var   <[name=]VAR_NAME> <[from_hosts=HOST_REGEX_LIST | from_groups=GROUP_REGEX_LIST]>
 
     HOST: Domain name or IP of the host
