@@ -548,6 +548,10 @@ class Inventory:
     else:
       if g_name == 'all':
         return 'Group %s cannot be removed' % C('all')
+      for g in self.I:
+        g_child = self.__get_group_children( g )
+        if g_name in g_child:
+          g_child.remove( g_name )
       if g_name in self.I:
         self.I.pop( g_name )
       else:
