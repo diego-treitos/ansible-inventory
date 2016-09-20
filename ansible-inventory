@@ -815,7 +815,9 @@ class Console(cmd.Cmd):
         g_link = '├'
 
       if level == 0:
-        print('\n ╭─[%s]' % C( group ))
+        print('  ╭─'+'─'*group.__len__()+'─╮')
+        print(' ╭┤ %s │' % C( group ))
+        print(' │╰─'+'─'*group.__len__()+'─╯')
       else:
         if last_node:
           print( preline +'\b\b │' )
