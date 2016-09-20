@@ -845,7 +845,7 @@ class Console(cmd.Cmd):
     """
     show host(s) [[name=]HOST_REGEX]
     show group(s) [[name=]GROUPS_REGEX]
-    show tree [[name=]GROUP]
+    show tree <[name=]GROUP>
 
     HOST: Domain name or IP of the host
     VAR_NAME: Variable name
