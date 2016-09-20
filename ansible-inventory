@@ -638,7 +638,7 @@ class Console(cmd.Cmd):
         return 'Wrong subcommand: %s' % l2cmd
 
     # Convert the 3rd positional argument in the "name" optional argument
-    if args_dict['positional'].__len__() == 3:
+    if args_dict['positional'].__len__() == 3 and cmd+l2cmd != 'addvar':
       args[2] = ('name', args_dict['positional'][2])
       return self.__validate_args( args )
 
