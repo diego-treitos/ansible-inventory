@@ -758,7 +758,7 @@ class Console(cmd.Cmd):
       print('')
       self.do_exit(None)
       sys.exit(0)
-    if line.split()[0] not in self.allowed_commands:
+    if line and line.split() and line.split()[0] not in self.allowed_commands:
       self.__error('Invalid command')
       return ''
     return line
