@@ -33,8 +33,8 @@ import time
 # )
 
 # ( CONFIG
-INVENTORY_PATH = '/tmp/inventory.json'
-HISTORY_FILE = '/tmp/.ansible-inventory_history'
+INVENTORY_PATH = os.path.join( os.environ['HOME'], '.ansible/inventory.json' )
+HISTORY_FILE = os.path.join( os.environ['HOME'], '.ansible-inventory_history' )
 USE_COLORS=True
 # )
 
@@ -572,7 +572,7 @@ class Inventory:
 
 class Console(cmd.Cmd):
 
-  intro = "Welcome to the Ansible Inventory console. Type ? for help."
+  intro = "Welcome to the Ansible Inventory console. Type 'help' for help."
   # We use \001 and \002 to delimit non printable characters so the history completion is not messed up
   prompt = '\n\001'+C_BASE+"\002¬¬ \001"+C_RESET+'\002'
   file = None
