@@ -1312,8 +1312,21 @@ class Console(cmd.Cmd):
 # )
 
 if __name__ == '__main__':
-  inventory = Inventory( json_backend( INVENTORY_PATH ) )
+  if sys.argv.__len__() == 3 and sys.argv[1].lower() == '--import':
+    if os.path.exists( INVENTORY_PATH ):
+      print("An inventroy file already exists in %s. Please remove this file before importing." % INVENTORY_PATH)
+      sys.exit( 1 )
+    json_file_import = sys.argv[2]
+    if not os.path.exists( json_file_import ):
+      print("File %s does not exist." % json_file_import)
+      sys.exit( 1 )
 
+    inventory = Inventory( json_backend( json_file_import ) )
+    inventory.backend = json_backend( INVENTORY_PATH )
+    inventory.save()
+    sys.exit( 0 )
+
+  inventory = Inventory( json_backend( INVENTORY_PATH ) )
   if sys.argv.__len__() > 1:
     if sys.argv[1].lower() == '--list':
       print( inventory.get_ansible_json() )
