@@ -22,6 +22,7 @@
 from __future__ import print_function
 from re import fullmatch
 import cmd
+import configparser
 import errno
 import fcntl
 import json
@@ -33,13 +34,39 @@ import time
 # )
 
 # ( CONFIG
-INVENTORY_PATH = os.path.join( os.environ['HOME'], '.ansible/inventory.json' )
-HISTORY_FILE = os.path.join( os.environ['HOME'], '.ansible-inventory_history' )
-USE_COLORS=True
+AI_HOME = os.path.join( os.environ['HOME'], '.ansible' )
+CONFIG_PATH = os.path.join( AI_HOME, 'ansible-inventory.cfg' )
+HISTORY_FILE = os.path.join( AI_HOME, 'ansible-inventory_history' )
+BASE_CONFIG = """[global]
+use_colors = True
+
+# backend: redis, file
+backend = file
+
+
+[file_backend]
+path = ~/.ansible/inventory.json
+
+[redis_backend]
+host =
+port =
+pass =
+"""
 # )
 
 
 # ( AUX
+
+def check_requirements():
+  if not os.path.exists( AI_HOME ):
+    os.mkdir( AI_HOME )
+
+  if not os.path.exists( CONFIG_PATH ):
+    with open( CONFIG_PATH, 'w' ) as cf:
+      cf.write( BASE_CONFIG )
+      cf.close()
+
+
 def generate_colors():
   color_list = []
   for style in range( 3 ):
@@ -154,12 +181,12 @@ readline.read_history_file( HISTORY_FILE )
 
 
 # ( CLASSES
-class json_backend:
+class file_backend:
   "Backend class for ansible-inventory that uses a json file for storage"
 
   def __init__(self, inv_json_path):
     self.json_path = inv_json_path
-    self.lockfile = '/tmp/.ansible-inventory_json_backend.lock'
+    self.lockfile = '/tmp/.ansible-inventory_file_backend.lock'
 
   def load_inventory(self):
     "Returns a dictionary with the inventory contents as required by Inventory class"
@@ -1312,6 +1339,20 @@ class Console(cmd.Cmd):
 # )
 
 if __name__ == '__main__':
+  # Create needed directories and files
+  check_requirements()
+
+  # Read configuration
+  config = configparser.ConfigParser()
+  config.read( CONFIG_PATH )
+
+  # Parse configuration
+  USE_COLORS = config['global'].getboolean('use_colors')
+  if config['global']['backend'].lower() == 'file':
+    BACKEND = file_backend
+    BACKEND_PARAMS = os.path.expanduser( config['file_backend']['path'].strip('"\'') )
+
+  # Import
   if sys.argv.__len__() == 3 and sys.argv[1].lower() == '--import':
     print(" This will overwrite the current inventory. Are you sure you want to continue? [N/y]: ", end="")
     sys.stdout.flush()
@@ -1324,12 +1365,15 @@ if __name__ == '__main__':
     else:
       sys.exit( 1 )
 
-    inventory = Inventory( json_backend( json_file_import ) )
-    inventory.backend = json_backend( INVENTORY_PATH )
+    inventory = Inventory( BACKEND( json_file_import ) )
+    inventory.backend = BACKEND( BACKEND_PARAMS )
     inventory.save()
     sys.exit( 0 )
 
-  inventory = Inventory( json_backend( INVENTORY_PATH ) )
+  # Load inventory
+  inventory = Inventory( BACKEND( BACKEND_PARAMS ) )
+
+  # Ansible requests
   if sys.argv.__len__() > 1:
     if sys.argv[1].lower() == '--list':
       print( inventory.get_ansible_json() )
@@ -1342,5 +1386,6 @@ if __name__ == '__main__':
       print('Invalid arguments.')
       sys.exit(1)
 
+  # Ansible Inventory Console
   console = Console( inventory )
   console.cmdloop()
