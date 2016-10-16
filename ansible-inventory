@@ -249,7 +249,10 @@ class InventoryException( Exception ):
 
   def __init__(self, message, targets=()):
     super().__init__( message )
-    self.targets = targets
+    if type( targets ) == str:
+      self.targets = ( targets, )
+    else:
+      self.targets = tuple( targets )
 
 
 class InventoryInfoException( InventoryException ):
@@ -672,11 +675,14 @@ class Console(cmd.Cmd):
       try:
         return f(s, args)
       except InventoryException as e:
-        s.__error( e.__str__() % e.targets )
+        targets = tuple( C(x) for x in e.targets )
+        s.__error( e.__str__() % targets )
       except InventoryWarnException as e:
-        s.__warn( e.__str__() % e.targets )
+        targets = tuple( C(x) for x in e.targets )
+        s.__warn( e.__str__() % targets )
       except InventoryInfoException as e:
-        s.__info( e.__str__() % e.targets )
+        targets = tuple( C(x) for x in e.targets )
+        s.__info( e.__str__() % targets )
     wrapper.__doc__ = f.__doc__
     return wrapper
 
