@@ -307,13 +307,18 @@ class Inventory:
         return r
       except BlockingIOError:
         raise InventoryException("Backend temporally unavailable. Please try again.")
+      except Exception as e:
+        raise InventoryException( e.__str__() )
     return wrapper
 
   def read(f):
     "Decorator for functions that read, so they use they have the most updated information in case of several concurrent ansible-inventory sessions"
     def wrapper(s, *kargs, **kwargs):
-      s.reload()
-      return f(s, *kargs, **kwargs)
+      try:
+        s.reload()
+        return f(s, *kargs, **kwargs)
+      except Exception as e:
+        raise InventoryException( e.__str__() )
     return wrapper
 
   def __init__(self, backend):
@@ -1095,7 +1100,7 @@ class Console(cmd.Cmd):
       to_hosts = args_opt['to_hosts'].split(',')
     else:
       to_hosts = []
-  
+
     # ADD HOST
     if args_pos[1] == 'host':
       name = args_opt['name']
