@@ -106,21 +106,6 @@ def C(word, word_to_hash=None):
   return '\x1b[%sm%s\x1b[0m' % (color, word)
 
 
-def parseargs( f ):
-    def wrapper(s, arg ):
-        args={ 0: f.__name__.split('do_')[1] }
-        i=0
-        for a in arg.split():
-            i+=1
-            if i>0 and '=' in a:
-                args[i] = tuple(a.split('=', 1))
-            else:
-                args[i] = a
-        return f(s, args)
-    wrapper.__doc__ = f.__doc__
-    return wrapper
-
-
 # SimpleFlock from https://github.com/derpston/python-simpleflock
 class SimpleFlock:
    """Provides the simplest possible interface to flock-based file locking. Intended for use with the `with` syntax. It will create/truncate/delete the lock file as necessary."""
@@ -213,6 +198,21 @@ class file_backend:
     self.__lock.__exit__()
 
 
+class InventoryException( Exception ):
+
+  def __init__(self, message, targets=()):
+    super().__init__( message )
+    self.targets = targets
+
+
+class InventoryInfoException( InventoryException ):
+  pass
+
+
+class InventoryWarnException( InventoryException ):
+  pass
+
+
 class Inventory:
 
   # Inventory variable
@@ -256,7 +256,7 @@ class Inventory:
         s.backend.unlock()
         return r
       except BlockingIOError:
-        return "Backend temporally unavailable. Please try again."
+        raise InventoryException("Backend temporally unavailable. Please try again.")
     return wrapper
 
   def read(f):
@@ -407,22 +407,19 @@ class Inventory:
     if isinstance( self.I[ g_name ], list ):
       if h_name not in self.I[ g_name ]:
         self.I[ g_name ].append( h_name )
-        return None
     elif isinstance( self.I[ g_name ], dict ):
       if h_name not in self.I[ g_name ]['hosts']:
         self.I[ g_name ]['hosts'].append( h_name )
-        return None
-    return 'Host %s already in group %s' % ( h_name, g_name )
+    raise InventoryInfoException('Host %s already in group %s', ( h_name, g_name ))
 
   @write
   def add_host(self, host):
     'Adds a host'
     if host in self.__list_hosts():
-      return 'Host %s already exists' % C( host )
+      raise InventoryException('Host %s already exists', host)
     else:
       self.I['all'].append( host )
       self.I['_meta']['hostvars'][host] = {}
-      return None
 
   @write
   def add_group(self, group):
@@ -433,9 +430,8 @@ class Inventory:
         'vars': {},
         'children': []
       }
-      return None
     else:
-      return 'Group %s already exists' % C(group)
+      raise InventoryException('Group %s already exists', group)
 
   @write
   def add_group_to_group(self, child, group):
@@ -480,9 +476,9 @@ class Inventory:
     'Renames a host'
     hosts = self.__list_hosts()
     if new_name in hosts:
-      return 'Host %s already exists' % C(new_name)
+      raise InventoryException('Host %s already exists', new_name)
     if h_name not in hosts:
-      return 'Host %s does not exist' % C(h_name)
+      raise InventoryException('Host %s does not exist', h_name)
 
     if h_name in self.I['_meta']['hostvars']:
       hvars = self.I['_meta']['hostvars'].pop(h_name)
@@ -494,7 +490,6 @@ class Inventory:
       elif isinstance( self.I[g], dict):
         self.I[g]['hosts'].remove( h_name )
         self.I[g]['hosts'].append( new_name )
-    return None
 
   @write
   def rename_host_var(self, v_name, new_name, h_regex):
@@ -518,7 +513,6 @@ class Inventory:
       self.I['_meta']['hostvars'][h_name]['ansible_host'] = host
     else:
       self.I['_meta']['hostvars'][h_name] = { 'ansible_host': host }
-    return None
 
   @write
   def set_host_port(self, h_name, port):
@@ -527,18 +521,16 @@ class Inventory:
       self.I['_meta']['hostvars'][h_name]['ansible_port'] = port
     else:
       self.I['_meta']['hostvars'][h_name] = { 'ansible_port': port }
-    return None
 
   @write
   def rename_group(self, g_name, new_name):
     'Renames a group'
     if new_name in self.I:
-      return 'Group %s already exists' % C(new_name)
+      raise InventoryException('Group %s already exists', new_name)
     if g_name not in self.I:
-      return 'Group %s does not exist' % C(g_name)
+      raise InventoryException('Group %s does not exist', g_name)
     g_data = self.I.pop(g_name)
     self.I[new_name] = g_data
-    return None
 
   @write
   def rename_group_var(self, v_name, new_name, g_regex):
@@ -585,7 +577,7 @@ class Inventory:
           g_child.remove( g_name )
     else:
       if g_name == 'all':
-        return 'Group %s cannot be removed' % C('all')
+        raise InventoryException('Group %s cannot be removed', 'all')
       for g in self.I:
         g_child = self.__get_group_children( g )
         if g_name in g_child:
@@ -593,7 +585,7 @@ class Inventory:
       if g_name in self.I:
         self.I.pop( g_name )
       else:
-        return 'Group %s does not exist.' % C(g_name)
+        raise InventoryException('Group %s does not exist.', g_name)
 
   @write
   def remove_host_var(self, v_name, h_name ):
@@ -616,6 +608,30 @@ class Console(cmd.Cmd):
   file = None
 
   allowed_commands = ['add', 'show', 'edit', 'del', 'help', 'exit' ]
+
+  def console_handler( f ):
+    def wrapper(s, arg ):
+      # parse args
+      args={ 0: f.__name__.split('do_')[1] }
+      i=0
+      for a in arg.split():
+        i+=1
+        if i>0 and '=' in a:
+          args[i] = tuple(a.split('=', 1))
+        else:
+          args[i] = a
+
+      # handle exceptions
+      try:
+        return f(s, args)
+      except InventoryException as e:
+        s.__error( e.__str__() % e.targets )
+      except InventoryWarnException as e:
+        s.__warn( e.__str__() % e.targets )
+      except InventoryInfoException as e:
+        s.__info( e.__str__() % e.targets )
+    wrapper.__doc__ = f.__doc__
+    return wrapper
 
   def __init__(self, inventory):
     super(Console, self).__init__()
@@ -880,7 +896,7 @@ class Console(cmd.Cmd):
           prel = preline + ' │'
         self.__print_group_tree( g, level+1, preline=prel, last_node=last_child==g)
 
-  @parseargs
+  @console_handler
   def do_show(self, args):
     """
     show host(s) [[name=]HOST_REGEX]
@@ -993,7 +1009,7 @@ class Console(cmd.Cmd):
       self.__info('Here is the group tree for %s' % C( name ))
       self.__print_group_tree( name )
 
-  @parseargs
+  @console_handler
   def do_add(self, args):
     """
     add host  <[name=]HOST> [host=<host>[:<host_port>]]
@@ -1026,7 +1042,7 @@ class Console(cmd.Cmd):
       to_hosts = args_opt['to_hosts'].split(',')
     else:
       to_hosts = []
-
+  
     # ADD HOST
     if args_pos[1] == 'host':
       name = args_opt['name']
@@ -1040,12 +1056,8 @@ class Console(cmd.Cmd):
           host = args_opt['host']
 
       if not to_groups:
-        msg = self.inventory.add_host( name )
-        if not msg:
-          self.__ok('Host %s added' % C(name))
-        else:
-          self.__warn(msg)
-          return False
+        self.inventory.add_host( name )
+        self.__ok('Host %s added' % C(name))
 
         if host:
           self.inventory.set_host_host( name, host )
@@ -1089,11 +1101,8 @@ class Console(cmd.Cmd):
             self.inventory.add_group_to_group( group, g )
           self.__ok('Group %s added to groups' % C(group))
       else:
-        msg = self.inventory.add_group( group )
-        if not msg:
-          self.__ok('Group %s added' % C(group))
-        else:
-          self.__warn(msg)
+        self.inventory.add_group( group )
+        self.__ok('Group %s added' % C(group))
 
     # ADD VAR
     elif args_pos[1] == 'var':
@@ -1124,7 +1133,7 @@ class Console(cmd.Cmd):
             self.inventory.add_var_to_host( v_name, v_value, host )
           self.__ok('Var %s added to hosts with value %s' % ( C(v_name), C(v_value) ) )
 
-  @parseargs
+  @console_handler
   def do_edit(self, args):
     """
     edit host  <[name=]HOST> <new_name=NEW_NAME>
@@ -1219,7 +1228,7 @@ class Console(cmd.Cmd):
           self.inventory.change_host_var(v_name, new_value, h_regex)
           self.__ok('Variable %s changed to %s in selected hosts' % (C(v_name), C(new_value)))
 
-  @parseargs
+  @console_handler
   def do_del(self, args):
     """
     del host  <[name=]HOST_REGEX> [from_groups=GROUP_REGEX_LIST]
