@@ -201,6 +201,7 @@ class file_backend:
 
 
 class redis_backend:
+  "Backend class for ansible-inventory that uses redis for storage"
 
   def __init__( self, backend_parameters ):
     host = backend_parameters['host']
