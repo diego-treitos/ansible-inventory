@@ -303,12 +303,14 @@ class Inventory:
         s.reload()
         r = f(s, *args, **kwargs)
         s.save()
-        s.backend.unlock()
         return r
       except BlockingIOError:
         raise InventoryException("Backend temporally unavailable. Please try again.")
       except Exception as e:
         raise InventoryException( e.__str__() )
+      finally:
+        s.backend.unlock()
+
     return wrapper
 
   def read(f):
