@@ -28,7 +28,6 @@ import fcntl
 import json
 import os
 import readline
-import redis
 import signal
 import sys
 import time
@@ -1433,6 +1432,7 @@ if __name__ == '__main__':
     BACKEND = file_backend
     BACKEND_PARAMS = os.path.expanduser( config['file_backend']['path'].strip('"\'') )
   elif config['global']['backend'].lower() == 'redis':
+    import redis
     BACKEND = redis_backend
     BACKEND_PARAMS = { 'host': config['redis_backend']['host'] }
     port = config['redis_backend']['port']
