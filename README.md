@@ -53,6 +53,14 @@ inventory = /path/to/ansible-inventory
 ...
 ```
 
+## Importing an existing inventory
+
+Ansible Inventory also allows you to import an existing inventory as long as it uses the [ansible json format](http://docs.ansible.com/ansible/developing_inventory.html).
+So lets say that you dumped your inventory to a json file called `inventory.json`. You can import it just like this:
+
+```
+ansible-inventory --import inventory.json
+```
 
 # ALPHA STATUS
 This software is in an alpha status, there is still a lot of testing to do, documenting and bugfixing. Please do not use in a production environment
