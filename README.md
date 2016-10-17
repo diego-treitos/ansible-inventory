@@ -1,5 +1,9 @@
 # ansible-inventory
-Script to manage your Ansible Inventory and also can be used by ansible as a dynamic inventory source 
+Script to manage your Ansible Inventory and also can be used by ansible as a dynamic inventory source
+
+
+![demo](http://i.imgur.com/xeSCYMc.gif)
+
 
 ## Introduction
 The idea is to have a single script that allows you to manage your inventory hosts, groups and variables.
