@@ -1128,7 +1128,7 @@ class Console(cmd.Cmd):
         # Check hosts matching name=<name_regex>
         matching_hosts = self.inventory.list_hosts( name )
         if not matching_hosts:
-          self.warn('No host matches your selection')
+          self.__warn('No host matches your selection')
           return False
 
         matching_groups = []
