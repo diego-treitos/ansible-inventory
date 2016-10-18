@@ -306,6 +306,8 @@ class Inventory:
         return r
       except BlockingIOError:
         raise InventoryException("Backend temporally unavailable. Please try again.")
+      except InventoryException as e:
+        raise
       except Exception as e:
         raise InventoryException( e.__str__() )
       finally:
