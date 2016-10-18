@@ -749,6 +749,8 @@ class Console(cmd.Cmd):
         return 'Not enough arguments'
 
     # Get subcommand (l2cmd) and check it
+    if args_dict['positional'].__len__() < 2:
+        return 'No subcommand provided'
     l2cmd = args_dict['positional'][1]
     if not isinstance(l2cmd, str) or l2cmd not in ('host', 'group', 'var'):
       if cmd == 'show' and l2cmd not in ('host', 'group', 'hosts', 'groups', 'tree'):
