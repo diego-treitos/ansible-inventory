@@ -270,7 +270,7 @@ class Inventory:
 
 ### Internal inventory format
 #{
-#          "all"   : [ all hosts here ],
+#          "all"   : { 'hosts':[ all hosts here ], 'children':[], 'vars',{} },
 #    "databases"   : {
 #        "hosts"   : [ "host1.example.com", "host2.example.com" ],
 #        "vars"    : {
@@ -308,8 +308,6 @@ class Inventory:
         raise InventoryException("Backend temporally unavailable. Please try again.")
       except InventoryException as e:
         raise
-      except Exception as e:
-        raise InventoryException( e.__str__() )
       finally:
         s.backend.unlock()
 
@@ -334,7 +332,11 @@ class Inventory:
     if '_meta' not in self.I:
       self.I['_meta'] = {}
     if 'all' not in self.I:
-      self.I['all'] = []
+      self.I['all'] = {
+        'children': [],
+        'hosts': [],
+        'vars': {}
+      }
     if 'hostvars' not in self.I['_meta']:
       self.I['_meta']['hostvars'] = {}
 
@@ -476,7 +478,7 @@ class Inventory:
     if host in self.__list_hosts():
       raise InventoryException('Host %s already exists', host)
     else:
-      self.I['all'].append( host )
+      self.I['all']['hosts'].append( host )
       self.I['_meta']['hostvars'][host] = {}
 
   @write
