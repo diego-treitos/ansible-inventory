@@ -495,10 +495,10 @@ class Inventory:
       self.I['all']['hosts'].append( h_name )
       self.I['_meta']['hostvars'][ h_name ] = {}
 
-    if host:
-      self.inventory.__set_host_host( h_name, host )
-    if port:
-      self.inventory.__set_host_port( h_name, port )
+    if h_host:
+      self.inventory.__set_host_host( h_name, h_host )
+    if h_port:
+      self.inventory.__set_host_port( h_name, h_port )
 
   @write
   def add_group(self, group):
