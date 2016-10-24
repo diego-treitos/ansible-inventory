@@ -571,6 +571,16 @@ class Inventory:
         self.I[g]['hosts'].append( new_name )
 
   @write
+  def change_host(self, h_name, h_host=None, h_port=None):
+    'Changes the host address or port of a host'
+    if h_name not in self.__list_hosts():
+      raise InventoryException('Host %s does not exist', h_name)
+    if h_host:
+      self.__set_host_host( h_name, h_host )
+    if h_port:
+      self.__set_host_port( h_name, h_port )
+
+  @write
   def rename_host_var(self, v_name, new_name, h_regex):
     'Renames a variable in a set of hosts matching a regular expression'
     for h in self.__list_hosts():
@@ -1249,10 +1259,7 @@ class Console(cmd.Cmd):
           host = args_opt['new_host']
           port = None
 
-        if host:
-          self.inventory.set_host_host( name, host )
-        if port:
-          self.inventory.set_host_port( name, port )
+        self.inventory.change_host( name, host, port )
         self.__ok('Host address for %s changed to %s' % ( C(name), C(args_opt['new_host'])))
 
     # EDIT GROUP
