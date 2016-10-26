@@ -67,6 +67,10 @@ def check_requirements():
       cf.write( BASE_CONFIG )
       cf.close()
 
+  if not os.path.exists( HISTORY_FILE ):
+    open( HISTORY_FILE, 'a').close()
+  readline.read_history_file( HISTORY_FILE )
+
 
 def generate_colors():
   color_list = []
@@ -159,10 +163,6 @@ C_GOOD = '\x1b[1;32m'
 C_WARN = '\x1b[1;33m'
 C_INFO = '\x1b[1;34m'
 C_RESET = '\x1b[0;0m'
-
-if not os.path.exists( HISTORY_FILE ):
-  open( HISTORY_FILE, 'a').close()
-readline.read_history_file( HISTORY_FILE )
 # )
 
 
