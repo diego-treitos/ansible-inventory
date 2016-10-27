@@ -399,7 +399,7 @@ class Inventory:
       if isinstance( self.I[group], dict ) and 'children' in self.I[group]:
         return self.I[group]['children']
     return []
-  
+
   def __set_host_host(self, h_name, host):
     'Sets or replaces a host address for a host'
     if h_name in self.I['_meta']['hostvars']:
@@ -477,14 +477,24 @@ class Inventory:
     return self.__get_host_groups( host )
 
   @write
-  def add_host_to_group(self, h_name, g_name):
-    'Adds a single host to a single existing group'
-    if isinstance( self.I[ g_name ], list ):
-      if h_name not in self.I[ g_name ]:
-        self.I[ g_name ].append( h_name )
-    elif isinstance( self.I[ g_name ], dict ):
-      if h_name not in self.I[ g_name ]['hosts']:
-        self.I[ g_name ]['hosts'].append( h_name )
+  def add_hosts_to_groups(self, h_regex, g_regex):
+    'Adds a hosts matching h_regex to a existing groups matching g_regex'
+    matching_hosts = self.__list_hosts( h_regex )
+    if not matching_hosts:
+      raise InventoryException('No host matches your selection')
+
+    matching_groups = self.__list_groups( g_regex )
+    if not matching_groups:
+      raise InventoryException('No group matches your selection')
+
+    for h_name in matching_hosts:
+      for g_name in matching_groups:
+        if isinstance( self.I[ g_name ], list ):
+          if h_name not in self.I[ g_name ]:
+            self.I[ g_name ].append( h_name )
+        elif isinstance( self.I[ g_name ], dict ):
+          if h_name not in self.I[ g_name ]['hosts']:
+            self.I[ g_name ]['hosts'].append( h_name )
 
   @write
   def add_host(self, h_name, h_host=None, h_port=None ):
@@ -1139,22 +1149,9 @@ class Console(cmd.Cmd):
 
       # ADD HOST: TO_GROUPS
       else:
-        # Check hosts matching name=<name_regex>
-        matching_hosts = self.inventory.list_hosts( name )
-        if not matching_hosts:
-          self.__warn('No host matches your selection')
-          return False
-
-        matching_groups = []
         for g_regex in to_groups:
-          matching_groups += self.inventory.list_groups( g_regex )
-        if not matching_groups:
-          self.__warn('No group matches your selection')
-        else:
-          for h in matching_hosts:
-            for group in matching_groups:
-              self.inventory.add_host_to_group( h, group )
-          self.__ok('Host %s added to groups' % C(name))
+          self.inventory.add_hosts_to_groups( name, g_regex )
+        self.__ok('Host %s added to groups' % C(name))
 
     # ADD GROUP
     elif args_pos[1] == 'group':
