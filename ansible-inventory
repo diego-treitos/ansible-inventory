@@ -478,7 +478,7 @@ class Inventory:
 
   @write
   def add_hosts_to_groups(self, h_regex, g_regex):
-    'Adds a hosts matching h_regex to a existing groups matching g_regex'
+    'Adds a hosts matching h_regex to existing groups matching g_regex'
     matching_hosts = self.__list_hosts( h_regex )
     if not matching_hosts:
       raise InventoryException('No host matches your selection')
@@ -523,19 +523,28 @@ class Inventory:
       raise InventoryException('Group %s already exists', group)
 
   @write
-  def add_group_to_group(self, child, group):
-    'Adds a single group to a single existing group'
-    if isinstance( self.I[group], list):
-      hosts = self.I[group]
-      self.I[group] = {
-        'hosts': hosts,
-        'vars': {},
-        'children': []
-      }
-    elif isinstance( self.I[group], dict) and 'children' not in self.I[group]:
-      self.I[group]['children'] = []
-    if child not in self.I[group]['children']:
-      self.I[group]['children'].append( child )
+  def add_group_to_groups(self, group, g_regex):
+    'Adds a single group to existing groups matching g_regex'
+    if group not in self.__list_groups():
+      raise InventoryException('Group %s does not exist', targets=group)
+
+    matching_groups = self.__list_groups( g_regex )
+    if not matching_groups:
+      raise InventoryException('No group matches your selection')
+
+    for g in matching_groups:
+      if isinstance( self.I[g], list):
+        hosts = self.I[g]
+        self.I[g] = {
+          'hosts': hosts,
+          'vars': {},
+          'children': []
+        }
+      elif isinstance( self.I[g], dict) and 'children' not in self.I[g]:
+        self.I[g]['children'] = []
+
+      if group not in self.I[g]['children']:
+        self.I[g]['children'].append( group )
 
   @write
   def add_var_to_group(self, v_name, v_value, group):
@@ -1158,19 +1167,9 @@ class Console(cmd.Cmd):
       group = args_opt['name']
 
       if to_groups:
-        matching_groups = []
         for g_regex in to_groups:
-          matching_groups += self.inventory.list_groups( g_regex )
-        if not matching_groups:
-          self.__warn('No group matches your selection')
-        else:
-          # Add child group to normal groups if it does not exist
-          if group not in self.inventory.list_groups():
-            self.inventory.add_group( group )
-          # Add child group as child to matching groups
-          for g in matching_groups:
-            self.inventory.add_group_to_group( group, g )
-          self.__ok('Group %s added to groups' % C(group))
+          self.inventory.add_group_to_groups( group, g_regex )
+        self.__ok('Group %s added to groups' % C(group))
       else:
         self.inventory.add_group( group )
         self.__ok('Group %s added' % C(group))
