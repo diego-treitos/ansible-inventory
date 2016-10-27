@@ -478,7 +478,7 @@ class Inventory:
 
   @write
   def add_hosts_to_groups(self, h_regex, g_regex):
-    'Adds a hosts matching h_regex to existing groups matching g_regex'
+    'Adds a hosts matching h_regex to groups matching g_regex'
     matching_hosts = self.__list_hosts( h_regex )
     if not matching_hosts:
       raise InventoryException('No host matches your selection')
@@ -524,7 +524,7 @@ class Inventory:
 
   @write
   def add_group_to_groups(self, group, g_regex):
-    'Adds a single group to existing groups matching g_regex'
+    'Adds a single group to groups matching g_regex'
     if group not in self.__list_groups():
       raise InventoryException('Group %s does not exist', targets=group)
 
@@ -547,27 +547,51 @@ class Inventory:
         self.I[g]['children'].append( group )
 
   @write
-  def add_var_to_group(self, v_name, v_value, group):
-    'Adds a variable a single existing group'
-    if isinstance( self.I[group], list):
-      hosts = self.I[group]
-      self.I[group] = {
-        'hosts': hosts,
-        'vars': {},
-        'children': []
-      }
-    elif isinstance( self.I[group], dict) and 'vars' not in self.I[group]:
-      self.I[group]['vars'] = {}
-    if v_name not in self.I[group]['vars']:
-      self.I[group]['vars'][v_name] = v_value
+  def add_var_to_groups(self, v_name, v_value, g_regex):
+    'Adds a variable a to groups matching g_regex'
+    matching_groups = self.__list_groups( g_regex )
+    if not matching_groups:
+      raise InventoryException('No group matches your selection')
+
+    exist_in = []
+    for g in matching_groups:
+      if isinstance( self.I[g], list):
+        hosts = self.I[g]
+        self.I[g] = {
+          'hosts': hosts,
+          'vars': {},
+          'children': []
+        }
+      elif isinstance( self.I[g], dict) and 'vars' not in self.I[g]:
+        self.I[g]['vars'] = {}
+
+      if v_name not in self.I[g]['vars']:
+        self.I[g]['vars'][v_name] = v_value
+      else:
+        exist_in.append( g )
+
+    if exist_in:
+      str_list = '%s ' * exist_in.__len__()
+      raise InventoryException('Var %s already exist in these groups: '+str_list, targets=(v_name,)+tuple( exist_in ) )
 
   @write
-  def add_var_to_host(self, v_name, v_value, host):
-    'Adds a variable a single existing host'
-    if host not in self.I['_meta']['hostvars']:
-      self.I['_meta']['hostvars'][host] = {v_name : v_value}
-    else:
-      self.I['_meta']['hostvars'][host][v_name] = v_value
+  def add_var_to_hosts(self, v_name, v_value, h_regex):
+    'Adds a variable to hosts matching h_regex'
+    matching_hosts = self.__list_hosts( h_regex )
+    if not matching_hosts:
+      raise InventoryException('No host matches your selection')
+
+    exist_in = []
+    for h in matching_hosts:
+      if h not in self.I['_meta']['hostvars']:
+        self.I['_meta']['hostvars'][h] = {v_name : v_value}
+      elif v_name not in self.I['_meta']['hostvars'][h]:
+        self.I['_meta']['hostvars'][h][v_name] = v_value
+      else:
+        exist_in.append( h )
+    if exist_in:
+      str_list = '%s ' * exist_in.__len__()
+      raise InventoryException('Var %s already exist in these hosts: '+str_list, targets=(v_name,)+tuple( exist_in ) )
 
   @write
   def rename_host(self, h_name, new_name):
@@ -1182,26 +1206,14 @@ class Console(cmd.Cmd):
           v_value = args_opt[v]
 
       if to_groups:
-        matching_groups = []
         for g_regex in to_groups:
-          matching_groups += self.inventory.list_groups( g_regex )
-        if not matching_groups:
-          self.__warn('No group matches your selection')
-        else:
-          for g in matching_groups:
-            self.inventory.add_var_to_group( v_name, v_value, g )
-          self.__ok('Var %s added to groups with value %s' % ( C(v_name), C(v_value) ) )
+          self.inventory.add_var_to_groups( v_name, v_value, g_regex )
+        self.__ok('Var %s added to groups with value %s' % ( C(v_name), C(v_value) ) )
 
       if to_hosts:
-        matching_hosts = []
         for h_regex in to_hosts:
-          matching_hosts += self.inventory.list_hosts( h_regex )
-        if not matching_hosts:
-          self.__warn('No host matches your selection')
-        else:
-          for host in matching_hosts:
-            self.inventory.add_var_to_host( v_name, v_value, host )
-          self.__ok('Var %s added to hosts with value %s' % ( C(v_name), C(v_value) ) )
+          self.inventory.add_var_to_hosts( v_name, v_value, h_regex )
+        self.__ok('Var %s added to hosts with value %s' % ( C(v_name), C(v_value) ) )
 
   @console_handler
   def do_edit(self, args):
