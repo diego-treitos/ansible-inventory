@@ -13,7 +13,13 @@ When you have to change a variable that is in several hosts or groups, or you ne
 ## Installation
 Ansible Inventory requires python3. In case you want to use the `redis` backend, you will also need to install [redis-py]( https://github.com/andymccurdy/redis-py ) (`sudo apt-get install python3-redis`).
 
-You can then place the `ansible-inventory` script wherever you want inside your `PATH`.
+You can install `ansible-inventory` using `pip`
+
+```
+pip install ansible-inventory
+``` 
+
+You can also just download the `ansible-inventory` script and place it wherever you want inside your `PATH`.
 
 The first time you execute the script, it will create the necesary directories and default configurations inside your user's `HOME`.
 
