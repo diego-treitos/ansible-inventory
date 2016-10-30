@@ -1479,8 +1479,16 @@ if __name__ == '__main__':
     inventory.save()
     sys.exit( 0 )
 
-  # Load inventory
+  # Load inventory and create console
   inventory = Inventory( BACKEND( BACKEND_PARAMS ) )
+  console = Console( inventory )
+
+  # Import
+  if sys.argv.__len__() == 3 and sys.argv[1].lower() == '--batch':
+    USE_COLORS = False
+    cmd = sys.argv[2]
+    console.onecmd( cmd )
+    sys.exit( 0 )
 
   # Ansible requests
   if sys.argv.__len__() > 1:
@@ -1495,6 +1503,5 @@ if __name__ == '__main__':
       print('Invalid arguments.')
       sys.exit(1)
 
-  # Ansible Inventory Console
-  console = Console( inventory )
+  # Main console loop
   console.cmdloop()
