@@ -155,6 +155,7 @@ class SimpleFlock:
 
 
 # ( GLOBALS
+USE_COLORS = True
 COLORS = generate_colors256()
 
 C_BASE = '\x1b[1;37m'
@@ -719,8 +720,11 @@ class Inventory:
 class Console(cmd.Cmd):
 
   intro = "Welcome to the Ansible Inventory console. Type 'help' for help."
-  # We use \001 and \002 to delimit non printable characters so the history completion is not messed up
-  prompt = '\n\001'+C_BASE+"\002¬¬ \001"+C_RESET+'\002'
+  if USE_COLORS:
+    # We use \001 and \002 to delimit non printable characters so the history completion is not messed up
+    prompt = '\n\001'+C_BASE+"\002¬¬ \001"+C_RESET+'\002'
+  else:
+    prompt = '\n¬¬ '
   file = None
 
   allowed_commands = ['add', 'show', 'edit', 'del', 'help', 'exit' ]
@@ -939,19 +943,31 @@ class Console(cmd.Cmd):
     return line
 
   def __ok(self, msg):
-    print(C_BASE+"v   "+C_GOOD+'ok '+C_BASE+msg+C_RESET)
+    if USE_COLORS:
+      print(C_BASE+"v   "+C_GOOD+'ok '+C_BASE+msg+C_RESET)
+    else:
+      print("v   ok "+msg)
     print('')
 
   def __info(self, msg):
-    print(C_BASE+"-   "+C_INFO+'info '+C_BASE+msg+C_RESET)
+    if USE_COLORS:
+      print(C_BASE+"-   "+C_INFO+'info '+C_BASE+msg+C_RESET)
+    else:
+      print("-   info "+msg)
     print('')
 
   def __warn(self, msg):
-    print(C_BASE+"~   "+C_WARN+'warning '+C_BASE+msg+C_RESET)
+    if USE_COLORS:
+      print(C_BASE+"~   "+C_WARN+'warning '+C_BASE+msg+C_RESET)
+    else:
+      print("~   warning "+msg)
     print('')
 
   def __error(self, msg):
-    print(C_BASE+"^   "+C_FAIL+'error '+C_BASE+msg+C_RESET)
+    if USE_COLORS:
+      print(C_BASE+"^   "+C_FAIL+'error '+C_BASE+msg+C_RESET)
+    else:
+      print("^   error "+msg)
     print('')
 
   def __confirm(self, msg):
