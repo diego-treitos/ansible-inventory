@@ -971,7 +971,10 @@ class Console(cmd.Cmd):
     print('')
 
   def __confirm(self, msg):
-    print(C_BASE+"·   "+C_INFO+'confirm '+C_BASE+msg+' [N/y]: '+C_RESET, end='')
+    if USE_COLORS:
+      print(C_BASE+"·   "+C_INFO+'confirm '+C_BASE+msg+' [N/y]: '+C_RESET, end='')
+    else:
+      print("·   confirm "+msg+' [N/y]: ', end='')
     sys.stdout.flush()
     answer = sys.stdin.readline()
     if answer.lower().strip( '\n' ) in ('y', 'yes'):
