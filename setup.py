@@ -22,7 +22,7 @@ AUTHOR_EMAIL='diego.blanco@treitos.com'
 URL='https://github.com/diego-treitos/ansible-inventory'
 
 
-VERSION="0.1.2"
+VERSION="0.2.0"
 SCRIPTS=['ansible-inventory']
 PACKAGES=[]
 MANIFEST="""
