@@ -1,5 +1,7 @@
 #!/bin/bash
 
+trap "exit 1" TERM
+export TOP_PID=$$
 
 ANSIBLE_HOME="$HOME/.ansible"
 
@@ -34,12 +36,12 @@ exec_cmd() {
 
 run_test(){
     exec_cmd $*
-    [ "$?" != 0 ] && do_exit 1
+    [ "$?" != "0" ] && do_exit 1
 }
 
 do_exit(){
     rm -f "/tmp/ansible_test_inventory.json"
-    exit $1
+    kill -s TERM $TOP_PID
 }
 
 
