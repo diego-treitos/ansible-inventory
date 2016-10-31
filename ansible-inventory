@@ -1311,7 +1311,8 @@ class Console(cmd.Cmd):
             self.inventory.rename_group_var(v_name, new_name, g_regex)
           self.__ok('Variable %s renamed to %s in selected groups' % (C(v_name), C(new_name)))
         if new_value:
-          self.inventory.change_group_var(v_name, new_value, g_regex)
+          for g_regex in in_groups:
+            self.inventory.change_group_var(v_name, new_value, g_regex)
           self.__ok('Variable %s changed to %s in selected groups' % (C(v_name), C(new_value)))
 
       if in_hosts:
@@ -1320,7 +1321,8 @@ class Console(cmd.Cmd):
             self.inventory.rename_host_var(v_name, new_name, h_regex)
           self.__ok('Variable %s renamed to %s in selected hosts' % (C(v_name), C(new_name)))
         if new_value:
-          self.inventory.change_host_var(v_name, new_value, h_regex)
+          for h_regex in in_hosts:
+            self.inventory.change_host_var(v_name, new_value, h_regex)
           self.__ok('Variable %s changed to %s in selected hosts' % (C(v_name), C(new_value)))
 
   @console_handler
