@@ -1,6 +1,7 @@
 #!/bin/bash
 
-trap "exit 1" TERM
+trap "exit 0" USR1
+trap "exit 1" USR2
 export TOP_PID=$$
 
 ANSIBLE_HOME="$HOME/.ansible"
@@ -41,7 +42,11 @@ run_test(){
 
 do_exit(){
     rm -f "/tmp/ansible_test_inventory.json"
-    kill -s TERM $TOP_PID
+    if [ $1 == 0 ]; then
+        kill -s USR1 $TOP_PID
+    else
+        kill -s USR2 $TOP_PID
+    fi
 }
 
 
@@ -79,7 +84,7 @@ ai_tests=(
     'del host test.*'
     'del group gtest1 from_groups=vp1.*,vp2.*'
     'del group gtest1'
-    'del group vp1.*,vp2.*'
+    'del group vp1.*|vp2.*'
 )
 
 
