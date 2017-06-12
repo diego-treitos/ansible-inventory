@@ -1513,7 +1513,8 @@ class Console(cmd.Cmd):
             if sc.startswith( kind ):
               return [ sc+' ' ]
         else:
-          options = list(cmd_map[ cmd ][ kind ].keys())
+          if cmd != 'show':
+            options = list(cmd_map[ cmd ][ kind ].keys())
 
           if current_line.__len__() > 2:
             target = current_line[ 2 ]
