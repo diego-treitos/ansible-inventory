@@ -70,6 +70,7 @@ def check_requirements():
   if not os.path.exists( HISTORY_FILE ):
     open( HISTORY_FILE, 'a').close()
   readline.read_history_file( HISTORY_FILE )
+  readline.set_completer_delims(' ')
 
 
 def generate_colors():
@@ -273,27 +274,27 @@ class Inventory:
 #{
 #          "all"   : { 'hosts':[ all hosts here ], 'children':[], 'vars',{} },
 #    "databases"   : {
-#        "hosts"   : [ "host1.example.com", "host2.example.com" ],
-#        "vars"    : {
-#            "a"   : true
-#        }
+#            "hosts" : [ "host1.example.com", "host2.example.com" ],
+#            "vars"  : {
+#                  "a" : true
+#            }
 #    },
 #    "webservers"  : [ "host2.example.com", "host3.example.com" ],
 #    "atlanta"     : {
-#        "hosts"   : [ "host1.example.com", "host4.example.com", "host5.example.com" ],
-#        "vars"    : {
-#            "b"   : false
-#        },
-#        "children": [ "marietta", "5points" ]
+#          "hosts"   : [ "host1.example.com", "host4.example.com", "host5.example.com" ],
+#          "vars"    : {
+#                "b"   : false
+#          },
+#          "children": [ "marietta", "5points" ]
 #    },
 #    "marietta"    : [ "host6.example.com" ],
 #    "5points"     : [ "host7.example.com" ]
-#    "_meta" : {
-#       "hostvars" : {
-#          "moocow.example.com"     : { "asdf" : 1234 },
-#          "llama.example.com"      : { "asdf" : 5678 },
-#          "xeira"                  : { "ansible_host" : xeira.example.com },
-#       }
+#       "_meta"    : {
+#         "hostvars" : {
+#           "moocow.example.com"     : { "asdf" : 1234 },
+#           "llama.example.com"      : { "asdf" : 5678 },
+#           "xeira"                  : { "ansible_host" : xeira.example.com },
+#         }
 #    }
 #}
   def write(f):
@@ -414,6 +415,21 @@ class Inventory:
       self.I['_meta']['hostvars'][h_name]['ansible_port'] = port
     else:
       self.I['_meta']['hostvars'][h_name] = { 'ansible_port': port }
+
+  def local_list_vars( self, v_regex='.*' ):
+    'Returns a list of variables in the inventory. If regex specified only matching variables will be returned. This only checks the local copy of the inventory for performance reasons'
+    i_vars = []
+    for g in self.I:
+      if g == '_meta':
+        for h in self.I['_meta']['hostvars']:
+          for v in self.I['_meta']['hostvars'][ h ]:
+            if v not in i_vars and fullmatch( v_regex, v ):
+              i_vars.append( v )
+      else:
+        for v in self.I[ g ]['vars']:
+          if v not in i_vars and fullmatch( v_regex, v ):
+            i_vars.append( v )
+    return i_vars
 
   @read
   def get_ansible_json(self):
@@ -1456,7 +1472,96 @@ class Console(cmd.Cmd):
             self.inventory.remove_host_var( name, h )
           self.__ok('Variable %s removed from hosts' % C(name))
 
+  def completedefault(self, text, line, begidx, endidx):
+    current_line=line.split()
+    cmd = current_line[ 0 ]
+    cmd_map = {
+      'add' : {
+        'host' : { 'host': None, 'to_groups': None },
+        'group': { 'to_groups': None },
+        'var'  : { 'to_hosts': None, 'to_groups': None }
+      },
+      'del' : {
+        'host' : { 'from_groups': None },
+        'group': { 'from_groups': None },
+        'var'  : { 'from_hosts': None, 'from_groups': None }
+      },
+      'edit': {
+        'host' : { 'new_name': None, 'new_host': None },
+        'group': { 'new_name': None },
+        'var'  : {
+          'new_name' : { 'in_hosts': None, 'in_groups': None },
+          'new_value': { 'in_hosts': None, 'in_groups': None },
+        }
+      },
+      'show': { 'host': None, 'group': None, 'tree': None },
+    }
+
+    def __comp( _kind, _text ):
+      if _kind == 'host':
+        return self.inventory.list_hosts( _text+'.*' )
+      elif _kind == 'var':
+        return self.inventory.local_list_vars( _text+'.*' )
+      else:
+        return self.inventory.list_groups( _text+'.*' )
+
+    if cmd in cmd_map:
+      if current_line.__len__() > 1:
+        kind = current_line[ 1 ]
+        if kind not in cmd_map[ cmd ].keys():
+          for sc in cmd_map[ cmd ]:
+            if sc.startswith( kind ):
+              return [ sc+' ' ]
+        else:
+          options = list(cmd_map[ cmd ][ kind ].keys())
+
+          if current_line.__len__() > 2:
+            target = current_line[ 2 ]
+          else:
+            target = None
+
+          if current_line.__len__() > 3:
+            subtarget = current_line[ 3 ]
+            options = list(cmd_map[ cmd ][ kind ].keys())
+          else:
+            subtarget = None
+
+          if current_line.__len__() > 4 or (current_line.__len__() == 4 and not text):
+            if cmd == 'edit' and kind == 'var' and subtarget.startswith('new_'):
+              options = list(cmd_map[ cmd ][ kind ][ subtarget.split('=')[0] ].keys())
+              if current_line.__len__() > 4:
+                subtarget = current_line[ 4 ]
+              else:
+                subtarget = None
+
+          if subtarget is not None:
+            if 'groups=' in text or 'hosts=' in text:
+              part = text.split('=')[1].split(',')[ -1 ]
+              prepart = text.rpartition(',')[0]
+              if prepart:
+                prepart+=','
+              else:
+                prepart = text.split('=')[0]+'='
+              if 'hosts=' in text:
+                return [ prepart+x for x in __comp('host', part) ]
+              return [ prepart+x for x in __comp('group', part) ]
+            else:
+              opt = []
+              for o in [ op+'=' for op in options ]:
+                if o.startswith( text ):
+                  opt.append( o )
+              return opt or options
+
+          if target is not None:
+            if text:
+              return __comp( kind, text )
+            return options
+          return __comp( kind, text )
+      else:
+        return list(cmd_map[ cmd ].keys())
+    return []
 # )
+
 
 if __name__ == '__main__':
   # Create needed directories and files
