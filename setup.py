@@ -9,8 +9,13 @@ import sys
 import shutil
 from subprocess import Popen
 
-
+# Sorry for this, God of Python
+ai_module_name = 'ansible_inventory.py'
+if os.path.exists( ai_module_name ):
+  os.unlink( ai_module_name )
+os.symlink( 'ansible-inventory', ai_module_name )
 from ansible_inventory import VERSION as AI_VERSION, AUTHOR_NAME as AI_AUTHOR, AUTHOR_MAIL as AI_AUTHOR_EMAIL, URL as AI_URL
+os.unlink( ai_module_name )
 
 
 #This is a list of files to install, and where

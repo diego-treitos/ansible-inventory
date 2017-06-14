@@ -157,7 +157,7 @@ class SimpleFlock:
 
 
 # ( GLOBALS
-VERSION = '0.3.2'
+VERSION = '0.3.3'
 AUTHOR_NAME = 'Diego Blanco'
 AUTHOR_MAIL = 'diego.blanco@treitos.com'
 URL = 'https://github.com/diego-treitos/ansible-inventory'
