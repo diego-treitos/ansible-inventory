@@ -21,6 +21,7 @@
 # ( IMPORTS
 from __future__ import print_function
 from re import fullmatch
+import argparse
 import cmd
 import configparser
 import errno
@@ -1609,13 +1610,25 @@ if __name__ == '__main__':
     if password:
       BACKEND_PARAMS['password'] = password
 
+  parser = argparse.ArgumentParser( description='Ansible Inventory manager' )
+  group = parser.add_mutually_exclusive_group()
+  group.add_argument('--import', dest='inventory', action='store',
+                      help='Import an existing ansible inventory. It must be in the ansible dynamic inventory JSON format.')
+  group.add_argument('--batch', dest='command', action='store',
+                     help='Execute an Ansible Inventory command in batch mode. (i.e. "add host test host=1.2.3.4" ).')
+  group.add_argument('--list', dest='list', action='store_true',
+                     help='Used by Ansible. Dumps the current inventory.')
+  group.add_argument('--host', dest='host', action='store',
+                     help='Used by Ansible. Dumps the inventory information of a known host.')
+  args = parser.parse_args()
+
   # Import
-  if sys.argv.__len__() == 3 and sys.argv[1].lower() == '--import':
+  if args.inventory:
     print(" This will overwrite the current inventory. Are you sure you want to continue? [N/y]: ", end="")
     sys.stdout.flush()
     ans = sys.stdin.readline()
     if ans.replace('\n', '').lower() in ('y', 'yes'):
-      json_file_import = sys.argv[2]
+      json_file_import = args.inventory
       if not os.path.exists( json_file_import ):
         print("File %s does not exist." % json_file_import)
         sys.exit( 1 )
@@ -1632,24 +1645,21 @@ if __name__ == '__main__':
   console = Console( inventory )
 
   # Import
-  if sys.argv.__len__() == 3 and sys.argv[1].lower() == '--batch':
+  if args.command:
     USE_COLORS = False
-    cmd = sys.argv[2]
+    cmd = args.command
     console.onecmd( cmd )
     sys.exit( 0 )
 
   # Ansible requests
-  if sys.argv.__len__() > 1:
-    if sys.argv[1].lower() == '--list':
-      print( inventory.get_ansible_json() )
-      sys.exit( 0 )
-    if sys.argv.__len__() == 3 and sys.argv[1].lower() == '--host':
-      host = sys.argv[2]
-      print( inventory.get_ansible_host_json(host) )
-      sys.exit( 0 )
-    else:
-      print('Invalid arguments.')
-      sys.exit(1)
+  if args.list:
+    print( inventory.get_ansible_json() )
+    sys.exit( 0 )
+
+  if args.host:
+    host = args.host
+    print( inventory.get_ansible_host_json(host) )
+    sys.exit( 0 )
 
   # Main console loop
   console.cmdloop()
