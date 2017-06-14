@@ -156,6 +156,10 @@ class SimpleFlock:
 
 
 # ( GLOBALS
+VERSION = '0.3.2'
+AUTHOR_NAME = 'Diego Blanco'
+AUTHOR_MAIL = 'diego.blanco@treitos.com'
+URL = 'https://github.com/diego-treitos/ansible-inventory'
 USE_COLORS = True
 COLORS = generate_colors256()
 
@@ -735,7 +739,16 @@ class Inventory:
 
 class Console(cmd.Cmd):
 
-  intro = "Welcome to the Ansible Inventory console. Type 'help' for help."
+  intro = """
+Welcome to %s.
+
+ Author: %s %s
+Project: %s
+
+Type 'help' for help.""" % ( C_BASE+'Ansible Inventory ' + VERSION,
+                             C_RESET+AUTHOR_NAME, '<'+AUTHOR_MAIL+'>'+C_BASE,
+                             C_RESET+URL )
+
   if USE_COLORS:
     # We use \001 and \002 to delimit non printable characters so the history completion is not messed up
     prompt = '\n\001'+C_BASE+"\002¬¬ \001"+C_RESET+'\002'

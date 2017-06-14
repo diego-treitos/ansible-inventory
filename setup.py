@@ -1,8 +1,17 @@
+#!/usr/bin/env python3
+# -*- coding:utf-8 -*-
+# vim: set ts=2 sw=2 sts=2 et:
+
+
 from setuptools import setup
 import os
 import sys
 import shutil
 from subprocess import Popen
+
+
+from ansible_inventory import VERSION as AI_VERSION, AUTHOR_NAME as AI_AUTHOR, AUTHOR_MAIL as AI_AUTHOR_EMAIL, URL as AI_URL
+
 
 #This is a list of files to install, and where
 #(relative to the 'root' dir, where setup.py is)
@@ -13,16 +22,19 @@ from subprocess import Popen
 #NOTE: Requires: fakeroot, alien, dpkg-buildpackage
 
 #-- GOBAL VARS --
-NAME="ansible-inventory"
-LICENSE="GPLv3"
-DESCRIPTION='Script to manage your Ansible Inventory and also can be used by ansible as a dynamic inventory source'
-LONG_DESCRIPTION=''
-AUTHOR='Diego Blanco'
-AUTHOR_EMAIL='diego.blanco@treitos.com'
-URL='https://github.com/diego-treitos/ansible-inventory'
+NAME         = "ansible-inventory"
+VERSION      = AI_VERSION
+AUTHOR       = AI_AUTHOR
+AUTHOR_EMAIL = AI_AUTHOR_EMAIL
+URL          = AI_URL
+LICENSE      = "GPLv3"
+DESCRIPTION  = 'Script to manage your Ansible Inventory and also can be used by ansible as a dynamic inventory source'
+LONG_DESCRIPTION = """%s
+Author: %s <%s>
+Project: %s
+""" % ( DESCRIPTION, AUTHOR, AUTHOR_EMAIL, URL )
 
 
-VERSION="0.3.1"
 SCRIPTS=['ansible-inventory']
 PACKAGES=[]
 MANIFEST="""
