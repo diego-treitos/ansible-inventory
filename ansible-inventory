@@ -421,7 +421,7 @@ class Inventory:
       self.I['_meta']['hostvars'][h_name] = { 'ansible_port': port }
 
   def local_list_vars( self, v_regex='.*' ):
-    'Returns a list of variables in the inventory. If regex specified only matching variables will be returned. This only checks the local copy of the inventory for performance reasons'
+    'Returns a list of variables in the inventory. If regex specified only matching variables will be returned. This only checks the local memory copy of the inventory.'
     i_vars = []
     for g in self.I:
       if g == '_meta':
@@ -434,6 +434,14 @@ class Inventory:
           if v not in i_vars and fullmatch( v_regex, v ):
             i_vars.append( v )
     return i_vars
+
+  def local_list_hosts(self, h_regex='.*'):
+    'Returns a list of known hosts in the inventory. If regex specified only matching hosts will be returned. This only checks the local memory copy of the inventory.'
+    return self.__list_hosts( h_regex )
+
+  def local_list_groups(self, g_regex='.*'):
+    'Returns a list of available groups. If g_regex is specified, only matching groups will be returned. This only checks the local memory copy of the inventory.'
+    return self.__list_groups( g_regex )
 
   @read
   def get_ansible_json(self):
@@ -1512,11 +1520,11 @@ Type 'help' for help.""" % ( C_BASE+'Ansible Inventory ' + VERSION,
 
     def __comp( _kind, _text ):
       if _kind == 'host':
-        return self.inventory.list_hosts( _text+'.*' )
+        return self.inventory.local_list_hosts( _text+'.*' )
       elif _kind == 'var':
         return self.inventory.local_list_vars( _text+'.*' )
       else:
-        return self.inventory.list_groups( _text+'.*' )
+        return self.inventory.local_list_groups( _text+'.*' )
 
     if cmd in cmd_map:
       if current_line.__len__() > 1:
