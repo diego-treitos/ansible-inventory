@@ -36,7 +36,12 @@ import uuid
 # )
 
 # ( CONFIG
-AI_HOME = os.path.join( os.environ['HOME'], '.ansible' )
+if os.path.islink( __file__ ):
+  # We do this here and not in __main__ so we keep
+  # the same behaviour even if this is used as a module
+  AI_HOME = os.path.join( os.path.dirname( os.path.realpath( __file__) ), '.ansible' )
+else:
+  AI_HOME = os.path.join( os.environ['HOME'], '.ansible' )
 CONFIG_PATH = os.path.join( AI_HOME, 'ansible-inventory.cfg' )
 HISTORY_FILE = os.path.join( AI_HOME, 'ansible-inventory_history' )
 BASE_CONFIG = """[global]
@@ -53,6 +58,7 @@ path = ~/.ansible/inventory.json
 host =
 port =
 password =
+inventory_name = ansible_inventory
 """
 # )
 
@@ -157,7 +163,7 @@ class SimpleFlock:
 
 
 # ( GLOBALS
-VERSION = '0.3.3'
+VERSION = '0.3.4'
 AUTHOR_NAME = 'Diego Blanco'
 AUTHOR_MAIL = 'diego.blanco@treitos.com'
 URL = 'https://github.com/diego-treitos/ansible-inventory'
@@ -212,16 +218,19 @@ class redis_backend:
   def __init__( self, backend_parameters ):
     host = backend_parameters['host']
     port=6379
+    inventory_name = 'ansible_inventory'
     password = None
     if 'port' in backend_parameters:
       port = backend_parameters['port']
     if 'password' in backend_parameters:
       password = backend_parameters['password']
+    if 'inventory_name' in backend_parameters:
+      inventory_name = backend_parameters['inventory_name']
 
     self.r = redis.Redis( host=host, port=port, password=password )
-    self.i = 'ansible_inventory'
+    self.i = inventory_name
     self.uuid = str( uuid.uuid4() )
-    self.__lock_name = 'ansible_inventory_redis_backend_lock'
+    self.__lock_name = inventory_name + '_redis_backend_lock'
     self.__timeout = 3  # seconds
 
   def load_inventory( self ):
@@ -1605,10 +1614,16 @@ if __name__ == '__main__':
     BACKEND_PARAMS = { 'host': config['redis_backend']['host'] }
     port = config['redis_backend']['port']
     password = config['redis_backend']['password']
+    if 'inventory_name' in config['redis_backend']:
+      inventory_name = config['redis_backend']['inventory_name']
+    else:
+      inventory_name = None
     if port:
       BACKEND_PARAMS['port'] = port
     if password:
       BACKEND_PARAMS['password'] = password
+    if inventory_name:
+      BACKEND_PARAMS['inventory_name'] = inventory_name
 
   parser = argparse.ArgumentParser( description='Ansible Inventory manager' )
   group = parser.add_mutually_exclusive_group()
