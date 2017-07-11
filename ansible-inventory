@@ -1595,36 +1595,38 @@ Type 'help' for help.""" % ( C_BASE+'Ansible Inventory ' + VERSION,
 # )
 
 
+# Create needed directories and files
+check_requirements()
+
+# Read configuration
+config = configparser.ConfigParser()
+config.read( CONFIG_PATH )
+
+# Parse configuration
+USE_COLORS = config['global'].getboolean('use_colors')
+if config['global']['backend'].lower() == 'file':
+  BACKEND = file_backend
+  BACKEND_PARAMS = os.path.expanduser( config['file_backend']['path'].strip('"\'') )
+elif config['global']['backend'].lower() == 'redis':
+  import redis
+  BACKEND = redis_backend
+  BACKEND_PARAMS = { 'host': config['redis_backend']['host'] }
+  port = config['redis_backend']['port']
+  password = config['redis_backend']['password']
+  if 'inventory_name' in config['redis_backend']:
+    inventory_name = config['redis_backend']['inventory_name']
+  else:
+    inventory_name = None
+  if port:
+    BACKEND_PARAMS['port'] = port
+  if password:
+    BACKEND_PARAMS['password'] = password
+  if inventory_name:
+    BACKEND_PARAMS['inventory_name'] = inventory_name
+
+
 if __name__ == '__main__':
-  # Create needed directories and files
-  check_requirements()
-
-  # Read configuration
-  config = configparser.ConfigParser()
-  config.read( CONFIG_PATH )
-
-  # Parse configuration
-  USE_COLORS = config['global'].getboolean('use_colors')
-  if config['global']['backend'].lower() == 'file':
-    BACKEND = file_backend
-    BACKEND_PARAMS = os.path.expanduser( config['file_backend']['path'].strip('"\'') )
-  elif config['global']['backend'].lower() == 'redis':
-    import redis
-    BACKEND = redis_backend
-    BACKEND_PARAMS = { 'host': config['redis_backend']['host'] }
-    port = config['redis_backend']['port']
-    password = config['redis_backend']['password']
-    if 'inventory_name' in config['redis_backend']:
-      inventory_name = config['redis_backend']['inventory_name']
-    else:
-      inventory_name = None
-    if port:
-      BACKEND_PARAMS['port'] = port
-    if password:
-      BACKEND_PARAMS['password'] = password
-    if inventory_name:
-      BACKEND_PARAMS['inventory_name'] = inventory_name
-
+  # Parse command line arguments
   parser = argparse.ArgumentParser( description='Ansible Inventory manager' )
   group = parser.add_mutually_exclusive_group()
   group.add_argument('--import', dest='inventory', action='store',
