@@ -1,0 +1,33 @@
+v0.3.4 - Jun 14, 2017
+---------------------
+
+- Added support for multiple environments via symlinking
+- Parsed the config file outside __main__
+- Added option to change the key name of the inventory for redis backend
+
+
+v0.3.3 - Jun 14, 2017
+---------------------
+
+- Fixed setup problem
+
+
+v0.3.2 - Jun 14, 2017
+---------------------
+
+- Improved version handling and setup
+- Performance improvements for autocompletion
+- Exposed command line parameters ( --help )
+
+
+v0.3.1 - Jun 12, 2017
+---------------------
+
+- Fixed autocompletion for 'show' command
+
+
+
+v0.3.0 - Jun 12, 2017
+---------------------
+
+- Added autocompletion
