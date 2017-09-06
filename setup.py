@@ -8,15 +8,7 @@ import os
 import sys
 import shutil
 from subprocess import Popen
-
-# Sorry for this, God of Python
-ai_module_name = 'ansible_inventory.py'
-if os.path.exists( ai_module_name ):
-  os.unlink( ai_module_name )
-os.symlink( 'ansible-inventory', ai_module_name )
-from ansible_inventory import VERSION as AI_VERSION, AUTHOR_NAME as AI_AUTHOR, AUTHOR_MAIL as AI_AUTHOR_EMAIL, URL as AI_URL
-os.unlink( ai_module_name )
-
+from ansible_inventory.globals import VERSION as AI_VERSION, AUTHOR_NAME as AI_AUTHOR, AUTHOR_MAIL as AI_AUTHOR_EMAIL, URL as AI_URL
 
 #This is a list of files to install, and where
 #(relative to the 'root' dir, where setup.py is)
@@ -41,12 +33,11 @@ Project: %s
 
 
 SCRIPTS=['ansible-inventory']
-PACKAGES=[]
+PACKAGES=['ansible_inventory']
 MANIFEST="""
 include ansible-inventory
 """
-DATA_FILES=[]
-
+DATA_FILES={}
 
 #-- PYPI VARS --
 PYPI_DOWNLOAD_URL='https://github.com/diego-treitos/ansible-inventory/archive/v'+VERSION+'.tar.gz'
@@ -121,35 +112,39 @@ def postsetup():
         if cmd.wait() != 0:
             print("ERROR BUILDING .deb PACKAGE")
 
+
 ############################################################################
 # PreSetup
 if 'bdist_rpm' in sys.argv:
     presetup()
 
 setup(
-    name = NAME,
-    version = VERSION,
-    description = DESCRIPTION,
-    author = AUTHOR,
-    author_email = AUTHOR_EMAIL,
-    url = URL,
-    #Name the folder where your packages live:
-    #(If you have other packages (dirs) or modules (py files) then
-    #put them into the package directory - they will be found
-    #recursively.)
-    packages = PACKAGES,
-    #'package' package must contain files (see list above)
-    #I called the package 'package' thus cleverly confusing the whole issue...
-    #This dict maps the package name =to=> directories
-    #It says, package *needs* these files.
-    #package_data = {'package' : files },
-    #'runner' is in the root.
-    scripts = SCRIPTS,
-    long_description = LONG_DESCRIPTION,
-    #
-    #This next part it for the Cheese Shop, look a little down the page.
-    #classifiers = []
-    data_files = DATA_FILES
+  name = NAME,
+  version = VERSION,
+  description = DESCRIPTION,
+  long_description = LONG_DESCRIPTION,
+  license = LICENSE,
+  author = AUTHOR,
+  author_email = AUTHOR_EMAIL,
+  url = URL,
+  # Name the folder where your packages live:
+  # (If you have other packages (dirs) or modules (py files) then
+  # put them into the package directory - they will be found
+  # recursively.)
+  packages = PACKAGES,
+  # 'package' package must contain files (see list above)
+  # I called the package 'package' thus cleverly confusing the whole issue...
+  # This dict maps the package name =to=> directories
+  # It says, package *needs* these files.
+  package_data = DATA_FILES,
+  # 'runner' is in the root.
+  scripts = SCRIPTS,
+  #
+  # This next part it for the Cheese Shop, look a little down the page.
+  # classifiers = []
+  data_files = DATA_FILES,
+  # Requirements
+  python_requires = '>=3',
 )
 
 # PostSetup
