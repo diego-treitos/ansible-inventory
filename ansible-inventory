@@ -40,7 +40,7 @@ from ansible_inventory.globals import VERSION, AUTHOR_NAME, AUTHOR_MAIL, URL
 if os.path.islink( __file__ ):
   # We do this here and not in __main__ so we keep
   # the same behaviour even if this is used as a module
-  AI_HOME = os.path.join( os.path.dirname( os.path.realpath( __file__) ), '.ansible' )
+  AI_HOME = os.path.join( os.path.dirname( os.path.abspath( __file__) ), '.ansible' )
 else:
   AI_HOME = os.path.join( os.environ['HOME'], '.ansible' )
 CONFIG_PATH = os.path.join( AI_HOME, 'ansible-inventory.cfg' )
