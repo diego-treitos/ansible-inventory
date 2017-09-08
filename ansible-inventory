@@ -1603,7 +1603,11 @@ config.read( CONFIG_PATH )
 USE_COLORS = config['global'].getboolean('use_colors')
 if config['global']['backend'].lower() == 'file':
   BACKEND = file_backend
-  BACKEND_PARAMS = os.path.expanduser( config['file_backend']['path'].strip('"\'') )
+  inv_path = os.path.expanduser( config['file_backend']['path'].strip('"\'') )
+  if os.path.isabs( inv_path ):
+    BACKEND_PARAMS = inv_path
+  else:
+    BACKEND_PARAMS = os.path.join( AI_HOME, inv_path )
 elif config['global']['backend'].lower() == 'redis':
   import redis
   BACKEND = redis_backend
