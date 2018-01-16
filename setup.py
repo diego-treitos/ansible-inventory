@@ -32,10 +32,10 @@ Project: %s
 """ % ( DESCRIPTION, AUTHOR, AUTHOR_EMAIL, URL )
 
 
-SCRIPTS=['ansible-inventory']
+SCRIPTS=['ansible-inv']
 PACKAGES=['ansible_inventory']
 MANIFEST="""
-include ansible-inventory
+include ansible-inv
 """
 DATA_FILES={}
 

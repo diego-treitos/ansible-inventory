@@ -4,6 +4,8 @@ Script to manage your Ansible Inventory and also can be used by ansible as a dyn
 
 ![demo](http://i.imgur.com/ULCWQgm.gif)
 
+**NOTE**: Due to ansible including now an executable called `ansible-inventory`, the `ansible-inventory` executable has been **renamed** to `ansible-inv`
+
 
 ## Introduction
 The idea is to have a single script that allows you to manage your inventory hosts, groups and variables.
@@ -69,12 +71,12 @@ Currently you can choose between 2 backends:
 
 Both backends support concurrency, although in the case of Redis, the concurrency is limited to a single master scenario for now.
 
-You can configure `ansible-inventory` as the inventory in your `ansible.cfg` file so ansible will know about the inventory that you are handling through `ansible-inventory`. This way you wont have to run the commands with `ansible -i /path/to/ansible-inventory`. To do this, edit your ansible configuration file in `/etc/ansible/ansible.cfg` or `~/.ansible.cfg` and congiure your inventory like this:
+You can configure `ansible-inventory` as the inventory in your `ansible.cfg` file so ansible will know about the inventory that you are handling through `ansible-inventory`. This way you wont have to run the commands with `ansible -i /path/to/ansible-inv`. To do this, edit your ansible configuration file in `/etc/ansible/ansible.cfg` or `~/.ansible.cfg` and congiure your inventory like this:
 
 ```
 [defaults]
 
-inventory = /path/to/ansible-inventory
+inventory = /path/to/ansible-inv
 
 ...
 ```
@@ -85,7 +87,7 @@ Ansible Inventory also allows you to import an existing inventory as long as it 
 So lets say that you dumped your inventory to a json file called `inventory.json`. You can import it just like this:
 
 ```
-ansible-inventory --import inventory.json
+ansible-inv --import inventory.json
 ```
 
 ## Deploying for multiple environments
@@ -99,7 +101,7 @@ inventories/
     development/
        group_vars/
        host_vars/
-       hosts --> /usr/local/bin/ansible-inventory (symlink)
+       hosts --> /usr/local/bin/ansible-inv (symlink)
        .ansible/
           ansible-inventory.cfg
           ansible-inventory_history
@@ -107,7 +109,7 @@ inventories/
     production/
        group_vars/
        host_vars/
-       hosts --> /usr/local/bin/ansible-inventory (symlink)
+       hosts --> /usr/local/bin/ansible-inv (symlink)
        .ansible/
           ansible-inventory.cfg
           ansible-inventory_history
@@ -116,7 +118,7 @@ roles/
 [ ... ]
 ```
 
-Note that here _hosts_ is a symlink to `ansible-inventory` and that each environment has its own `.ansible` configuration directory with its own configuration and history file.
+Note that here _hosts_ is a symlink to `ansible-inv` and that each environment has its own `.ansible` configuration directory with its own configuration and history file.
 
 Then you could use something like this in your `ansible.cfg`:
 

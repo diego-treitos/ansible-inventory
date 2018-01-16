@@ -23,8 +23,8 @@ exec_cmd() {
     cmd="$*"
 
     echo "------------------------------------------------"
-    echo "¬¬ ./ansible-inventory --batch \"$cmd\""
-    output="$(./ansible-inventory --batch "$cmd")"
+    echo "¬¬ ./ansible-inv --batch \"$cmd\""
+    output="$(./ansible-inv --batch "$cmd")"
     retcode="$?"
     echo "$output"
     echo
