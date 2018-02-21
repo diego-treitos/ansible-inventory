@@ -22,6 +22,7 @@
 from __future__ import print_function
 from re import fullmatch
 import argparse
+import ast
 import cmd
 import configparser
 import errno
@@ -427,6 +428,14 @@ class Inventory:
     else:
       self.I['_meta']['hostvars'][h_name] = { 'ansible_port': port }
 
+  def __parse_var( self, raw_value ):
+    'Parses a var and returns a string, a list or a dict'
+    try:
+      v_value = ast.literal_eval( raw_value )
+    except:
+      v_value = raw_value
+    return v_value
+
   def local_list_vars( self, v_regex='.*' ):
     'Returns a list of variables in the inventory. If regex specified only matching variables will be returned. This only checks the local memory copy of the inventory.'
     i_vars = []
@@ -583,12 +592,13 @@ class Inventory:
         self.I[g]['children'].append( group )
 
   @write
-  def add_var_to_groups(self, v_name, v_value, g_regex):
+  def add_var_to_groups(self, v_name, raw_value, g_regex):
     'Adds a variable a to groups matching g_regex'
     matching_groups = self.__list_groups( g_regex )
     if not matching_groups:
       raise InventoryException('No group matches your selection')
 
+    v_value = self.__parse_var( raw_value )
     exist_in = []
     for g in matching_groups:
       if isinstance( self.I[g], list):
@@ -611,12 +621,13 @@ class Inventory:
       raise InventoryException('Var %s already exist in these groups: '+str_list, targets=(v_name,)+tuple( exist_in ) )
 
   @write
-  def add_var_to_hosts(self, v_name, v_value, h_regex):
+  def add_var_to_hosts(self, v_name, raw_value, h_regex):
     'Adds a variable to hosts matching h_regex'
     matching_hosts = self.__list_hosts( h_regex )
     if not matching_hosts:
       raise InventoryException('No host matches your selection')
 
+    v_value = self.__parse_var( raw_value )
     exist_in = []
     for h in matching_hosts:
       if h not in self.I['_meta']['hostvars']:
@@ -668,11 +679,11 @@ class Inventory:
         self.I['_meta']['hostvars'][h][new_name] = v_value
 
   @write
-  def change_host_var(self, v_name, v_value, h_regex):
+  def change_host_var(self, v_name, raw_value, h_regex):
     'Changes the value of a variable in the hosts matching a regular expression in case it is defined'
     for h in self.__list_hosts():
       if fullmatch( h_regex, h ) and h in self.I['_meta']['hostvars'] and v_name in self.I['_meta']['hostvars'][h]:
-        self.I['_meta']['hostvars'][h][v_name] = v_value
+        self.I['_meta']['hostvars'][h][v_name] = self.__parse_var( raw_value )
 
   @write
   def rename_group(self, g_name, new_name):
@@ -696,14 +707,14 @@ class Inventory:
           self.I[g]['vars'][new_name] = v_value
 
   @write
-  def change_group_var(self, v_name, v_value, g_regex):
+  def change_group_var(self, v_name, raw_value, g_regex):
     'Changes the value of a variable in the groups matching a regular expression in case it is defined'
     for g in self.I:
       if g == '_meta':
         continue
       if fullmatch( g_regex, g ) and isinstance( self.I[g], dict) and 'vars' in self.I[g]:
         if v_name in self.I[g]['vars']:
-          self.I[g]['vars'][v_name] = v_value
+          self.I[g]['vars'][v_name] = self.__parse_var( raw_value )
 
   @write
   def remove_host(self, h_name, from_groups=[]):
