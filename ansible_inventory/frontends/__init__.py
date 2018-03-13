@@ -191,10 +191,11 @@ class AnsibleInventory_Console(cmd.Cmd):
 
     elif cmd == 'show':
       if l2cmd in ['host', 'hosts']:
-        l2cmd_opts = ['name']
+        l2cmd_opts = ['name', 'in_groups']
         l2cmd_combs = [
           [],
           ['name'],
+          ['name', 'in_groups'],
         ]
       elif l2cmd in ['group', 'groups']:
         l2cmd_opts = ['name']
@@ -337,7 +338,7 @@ class AnsibleInventory_Console(cmd.Cmd):
   @console_handler
   def do_show(self, args):
     """
-    show host(s) [[name=]HOST_REGEX]
+    show host(s) [[name=]HOST_REGEX] [in_groups=GROUP_REGEX_LIST]
     show group(s) [[name=]GROUPS_REGEX]
     show tree <[name=]GROUP>
 
@@ -370,6 +371,27 @@ class AnsibleInventory_Console(cmd.Cmd):
       if not hosts:
         self.__warn('No host matched')
         return False
+
+      #( in_groups
+      in_groups = []
+      if 'in_groups' in args_opt:
+        for g_regex in args_opt['in_groups'].split(','):
+          self.inventory.next_from_cache()
+          in_groups += self.inventory.list_groups( g_regex )
+
+        filtered_hosts = []
+        for h in hosts:
+          remove_host = True
+          self.inventory.next_from_cache()
+          h_groups = self.inventory.get_host_groups( h )
+          for g in in_groups:
+            if g in h_groups:
+              remove_host = False
+          if not remove_host:
+            filtered_hosts.append(h)
+
+        hosts = filtered_hosts
+      #) in_groups
 
       max_n_len=0
       for n in hosts:
@@ -776,7 +798,13 @@ class AnsibleInventory_Console(cmd.Cmd):
           'new_value': { 'in_hosts': None, 'in_groups': None },
         }
       },
-      'show': { 'host': None, 'group': None, 'tree': None },
+      'show': {
+        'host': { 'in_groups': None },
+        'hosts': { 'in_groups': None },
+        'group': {},
+        'groups': {},
+        'tree': {}
+      },
     }
 
     def __comp( _kind, _text ):
@@ -795,8 +823,7 @@ class AnsibleInventory_Console(cmd.Cmd):
             if sc.startswith( kind ):
               return [ sc+' ' ]
         else:
-          if cmd != 'show':
-            options = list(cmd_map[ cmd ][ kind ].keys())
+          options = list(cmd_map[ cmd ][ kind ].keys())
 
           if current_line.__len__() > 2:
             target = current_line[ 2 ]
