@@ -33,7 +33,10 @@ Project: %s
 
 
 SCRIPTS=['ansible-inv']
-PACKAGES=['ansible_inventory']
+PACKAGES=['ansible_inventory',
+          'ansible_inventory.backends',
+          'ansible_inventory.frontends'
+          ]
 MANIFEST="""
 include ansible-inv
 """
