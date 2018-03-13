@@ -42,12 +42,12 @@ class AnsibleInventory:
 
   def write(f):
     "Decorator for functions that change the inventory. This should grant inventory integrity when several concurrent ansible-inventory sessions"
-    def wrapper(s, *args, **kwargs):
+    def wrapper(self, *args, **kwargs):
       try:
-        s.backend.lock()
-        s.reload()
-        r = f(s, *args, **kwargs)
-        s.save()
+        self.backend.lock()
+        self.reload()
+        r = f(self, *args, **kwargs)
+        self.save()
         return r
       except BlockingIOError:
         raise AnsibleInventory_Exception("Backend temporally unavailable. Please try again.")
@@ -60,10 +60,12 @@ class AnsibleInventory:
 
   def read(f):
     "Decorator for functions that read, so they use they have the most updated information in case of several concurrent ansible-inventory sessions"
-    def wrapper(s, *kargs, **kwargs):
+    def wrapper(self, *kargs, **kwargs):
       try:
-        s.reload()
-        return f(s, *kargs, **kwargs)
+        if self.__from_cache:
+          self.__from_cache = False
+          self.reload()
+        return f(self, *kargs, **kwargs)
       except Exception as e:
         raise AnsibleInventory_Exception( e.__str__() )
     return wrapper
@@ -71,6 +73,11 @@ class AnsibleInventory:
   def __init__(self, backend):
     self.backend = backend
     self.reload()
+    self.__from_cache = False
+
+  def next_from_cache( self ):
+    'This function can be called before calling any "read" method so it does not refresh the inventory from the backend'
+    self.__from_cache = True
 
   def __ensure_inventory_skel(self):
     'Ensures the basic structure of the inventory is pressent'
