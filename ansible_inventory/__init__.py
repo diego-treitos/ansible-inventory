@@ -54,7 +54,7 @@ class AnsibleInventory:
       except AnsibleInventory_Exception:
         raise
       finally:
-        s.backend.unlock()
+        self.backend.unlock()
 
     return wrapper
 
@@ -100,30 +100,6 @@ class AnsibleInventory:
     "Loads the inventory from the persistence backend"
     self.I = self.backend.load_inventory()
     self.__ensure_inventory_skel()
-
-  def __list_hosts(self, h_regex='.*'):
-    'Internal: Returns a list of known hosts in the inventory. If regex specified only matching hosts will be returned.'
-    hosts = []
-    for g in self.I:
-      if g == '_meta':
-        for h in self.I['_meta']['hostvars']:
-          if h not in hosts and fullmatch( h_regex, h ):
-            hosts.append( h )
-      else:
-        for h in self.__get_group_hosts( g ):
-          if h not in hosts and fullmatch( h_regex, h ):
-            hosts.append( h )
-    return hosts
-
-  def __list_groups(self, g_regex='.*'):
-    'Internal: Returns a list of available groups. If g_regex is specified, only matching groups will be returned'
-    groups = []
-    for g in self.I:
-      if g == '_meta':
-        continue
-      if fullmatch( g_regex, g ):
-        groups.append(g)
-    return groups
 
   def __get_group_hosts(self, group):
     'Internal: Returns a list of hosts in a group'
@@ -174,29 +150,6 @@ class AnsibleInventory:
       v_value = raw_value
     return v_value
 
-  def local_list_vars( self, v_regex='.*' ):
-    'Returns a list of variables in the inventory. If regex specified only matching variables will be returned. This only checks the local memory copy of the inventory.'
-    i_vars = []
-    for g in self.I:
-      if g == '_meta':
-        for h in self.I['_meta']['hostvars']:
-          for v in self.I['_meta']['hostvars'][ h ]:
-            if v not in i_vars and fullmatch( v_regex, v ):
-              i_vars.append( v )
-      else:
-        for v in self.I[ g ]['vars']:
-          if v not in i_vars and fullmatch( v_regex, v ):
-            i_vars.append( v )
-    return i_vars
-
-  def local_list_hosts(self, h_regex='.*'):
-    'Returns a list of known hosts in the inventory. If regex specified only matching hosts will be returned. This only checks the local memory copy of the inventory.'
-    return self.__list_hosts( h_regex )
-
-  def local_list_groups(self, g_regex='.*'):
-    'Returns a list of available groups. If g_regex is specified, only matching groups will be returned. This only checks the local memory copy of the inventory.'
-    return self.__list_groups( g_regex )
-
   @read
   def get_ansible_json(self):
     'Returns the ansible json'
@@ -212,12 +165,44 @@ class AnsibleInventory:
   @read
   def list_hosts(self, h_regex='.*'):
     'Returns a list of known hosts in the inventory. If regex specified only matching hosts will be returned'
-    return self.__list_hosts( h_regex )
+    hosts = []
+    for g in self.I:
+      if g == '_meta':
+        for h in self.I['_meta']['hostvars']:
+          if h not in hosts and fullmatch( h_regex, h ):
+            hosts.append( h )
+      else:
+        for h in self.__get_group_hosts( g ):
+          if h not in hosts and fullmatch( h_regex, h ):
+            hosts.append( h )
+    return hosts
 
   @read
   def list_groups(self, g_regex='.*'):
     'Returns a list of available groups. If g_regex is specified, only matching groups will be returned'
-    return self.__list_groups( g_regex )
+    groups = []
+    for g in self.I:
+      if g == '_meta':
+        continue
+      if fullmatch( g_regex, g ):
+        groups.append(g)
+    return groups
+
+  @read
+  def list_vars( self, v_regex='.*' ):
+    'Returns a list of variables in the inventory. If regex specified only matching variables will be returned.'
+    i_vars = []
+    for g in self.I:
+      if g == '_meta':
+        for h in self.I['_meta']['hostvars']:
+          for v in self.I['_meta']['hostvars'][ h ]:
+            if v not in i_vars and fullmatch( v_regex, v ):
+              i_vars.append( v )
+      else:
+        for v in self.I[ g ]['vars']:
+          if v not in i_vars and fullmatch( v_regex, v ):
+            i_vars.append( v )
+    return i_vars
 
   @read
   def get_group_vars(self, group):
@@ -273,7 +258,7 @@ class AnsibleInventory:
     'Checks if a group has a variable with v_name with a matching value of v_value_regex'
     self.next_from_cache()
     g_vars = self.get_group_vars( group )
-    if v_name in h_vars and fullmatch( v_value_regex, h_vars[v_name] ):
+    if v_name in g_vars and fullmatch( v_value_regex, g_vars[v_name] ):
       return True
     return False
 

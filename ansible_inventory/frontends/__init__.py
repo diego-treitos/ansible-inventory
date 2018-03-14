@@ -834,12 +834,13 @@ class AnsibleInventory_Console(cmd.Cmd):
     }
 
     def __comp( _kind, _text ):
+      self.inventory.next_from_cache()
       if _kind == 'host':
-        return self.inventory.local_list_hosts( _text+'.*' )
+        return self.inventory.list_hosts( _text+'.*' )
       elif _kind == 'var':
-        return self.inventory.local_list_vars( _text+'.*' )
+        return self.inventory.list_vars( _text+'.*' )
       else:
-        return self.inventory.local_list_groups( _text+'.*' )
+        return self.inventory.list_groups( _text+'.*' )
 
     if cmd in cmd_map:
       if current_line.__len__() > 1:
