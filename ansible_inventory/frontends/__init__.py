@@ -9,6 +9,10 @@ from ansible_inventory.lib import AnsibleInventory_Color, AnsibleInventory_Excep
 from ansible_inventory.globals import VERSION, AUTHOR_NAME, AUTHOR_MAIL, URL
 
 
+class AI_Console_ValidationError(Exception):
+  pass
+
+
 class AnsibleInventory_Console(cmd.Cmd):
 
   def console_handler( f ):
@@ -102,18 +106,18 @@ class AnsibleInventory_Console(cmd.Cmd):
     # Check number of arguments
     if cmd == 'show':
       if n_args < 2:
-        return 'Not enough arguments'
+        raise AI_Console_ValidationError('Not enough arguments')
     else:
       if n_args < 3:
-        return 'Not enough arguments'
+        raise AI_Console_ValidationError('Not enough arguments')
 
     # Get subcommand (l2cmd) and check it
     if args_dict['positional'].__len__() < 2:
-        return 'No subcommand provided'
+        raise AI_Console_ValidationError('No subcommand provided')
     l2cmd = args_dict['positional'][1]
     if not isinstance(l2cmd, str) or l2cmd not in ('host', 'group', 'var'):
       if cmd == 'show' and l2cmd not in ('host', 'group', 'hosts', 'groups', 'tree'):
-        return 'Wrong subcommand: %s' % l2cmd
+        raise AI_Console_ValidationError('Wrong subcommand: %s' % l2cmd)
 
     # Convert the 3rd positional argument in the "name" optional argument
     if args_dict['positional'].__len__() == 3 and cmd+l2cmd != 'addvar':
@@ -122,7 +126,7 @@ class AnsibleInventory_Console(cmd.Cmd):
 
     # Check the number of positional arguments
     if args_dict['positional'].__len__() > 3:
-      return 'Too many positional arguments'
+      raise AI_Console_ValidationError('Too many positional arguments')
 
     # Initialize the posible options per command+subcommand and the posible option combinations
     l2cmd_opts = []
@@ -207,16 +211,16 @@ class AnsibleInventory_Console(cmd.Cmd):
         ]
 
     else:
-      return 'Wrong command: %s' % cmd
+      raise AI_Console_ValidationError('Wrong command: %s' % cmd)
 
     if not l2cmd_opts and not l2cmd_combs:
-      return 'Wrong subcommand %s' % l2cmd
+      raise AI_Console_ValidationError('Wrong subcommand %s' % l2cmd)
 
     # Check optional arguments
     if 'ANY' not in l2cmd_opts:
       for a in args_dict['optional']:
         if a not in l2cmd_opts:
-          return 'Invalid argument %s' % a
+          raise AI_Console_ValidationError('Invalid argument %s' % a)
     valid=False
     pos_args = list(args_dict['optional'].keys())
     pos_args.sort()
@@ -225,7 +229,7 @@ class AnsibleInventory_Console(cmd.Cmd):
       if pos_args == c or 'ANY' in c:
         valid=True
     if not valid:
-      return 'Invalid arguments'
+      raise AI_Console_ValidationError('Invalid arguments')
 
     # Return the args_dict with the optional and positional arguments
     return args_dict
@@ -333,6 +337,139 @@ class AnsibleInventory_Console(cmd.Cmd):
           prel = preline + ' │'
         self.__print_group_tree( g, level+1, preline=prel, last_node=last_child==g)
 
+  def __print_host( self, host, max_len ):
+      host_line = ' ╭╴%%-%ds ' % max_len
+
+      print( host_line % self.C(host), end='' )
+
+      print('[ ', end='')
+      self.inventory.next_from_cache()
+      h_vars =  self.inventory.get_host_vars( host )
+      h_vars_keys = []
+      for v in h_vars:
+        h_vars_keys.append( v )
+      h_vars_keys.sort()
+      for v in h_vars_keys:
+        print( '%s=%s ' % (self.C(v), h_vars[v]), end='')
+      print(']')
+
+      print(' ╰──╴groups╶( ', end='')
+      self.inventory.next_from_cache()
+      groups = self.inventory.get_host_groups( host )
+      groups.sort()
+      for g in groups:
+        print( self.C(g)+' ', end='')
+      print(')\n')
+
+  def __print_group( self, group, max_len ):
+      group_line = ' ╭╴%%-%ds [ ' % max_len
+
+      print( group_line % self.C(group), end='' )
+      self.inventory.next_from_cache()
+      g_vars =  self.inventory.get_group_vars( group )
+      for v in g_vars:
+        print( '%s=%s ' % (self.C(v), g_vars[v]), end='')
+      print(']')
+
+      print(' ├──╴hosts╶( ', end='')
+      self.inventory.next_from_cache()
+      for c in self.inventory.get_group_hosts( group ):
+        print( self.C(c)+' ', end='')
+      print(')')
+
+      print(' ╰──╴child╶{ ', end='')
+      self.inventory.next_from_cache()
+      for h in self.inventory.get_group_children( group ):
+        print( self.C(h)+' ', end='')
+      print('}\n')
+
+  def __show_hosts( self, hosts, args_opt ):
+    'Handle "show hosts" command'
+
+    #( in_groups
+    in_groups = []
+    if 'in_groups' in args_opt:
+      for g_regex in args_opt['in_groups'].split(','):
+        self.inventory.next_from_cache()
+        in_groups += self.inventory.list_groups( g_regex )
+
+      filtered_hosts = []
+      for h in hosts:
+        remove_host = True
+        self.inventory.next_from_cache()
+        h_groups = self.inventory.get_host_groups( h )
+        for g in in_groups:
+          if g in h_groups:
+            remove_host = False
+        if not remove_host:
+          filtered_hosts.append(h)
+
+      hosts = filtered_hosts
+    #) in_groups
+
+    #( vars filter
+    filtered_hosts = []
+    for h in hosts:
+      remove_host = False
+      for v in args_opt:
+        if v not in ('in_groups', 'name'):
+          self.inventory.next_from_cache()
+          if not self.inventory.assert_host_var( h, v, args_opt[v] ):
+            remove_host = True
+      if not remove_host:
+        filtered_hosts.append( h )
+    hosts = filtered_hosts
+    #)
+
+    if not hosts:
+      self.__warn('No host matched')
+      return False
+
+    max_len=0
+    for n in hosts:
+      cn = self.C(n)
+      if cn.__len__() > max_len:
+        max_len = cn.__len__()
+    hosts.sort()
+
+    self.__info('Here is your hosts list')
+    for host in hosts:
+      self.__print_host( host, max_len )
+    return True
+
+  def __show_groups( self, groups, args_opt ):
+    'Handle "show groups" command'
+
+    #( vars filter
+    filtered_groups = []
+    for g in groups:
+      remove_group = False
+      for v in args_opt:
+        if v != 'name':
+          self.inventory.next_from_cache()
+          if not self.inventory.assert_group_var( g, v, args_opt[v] ):
+            remove_group = True
+      if not remove_group:
+        filtered_groups.append( g )
+    groups = filtered_groups
+    #)
+
+    if not groups:
+      self.__warn('No group matched')
+      return False
+
+    max_len=0
+    for n in groups:
+      cn = self.C(n)
+      if cn.__len__() > max_len:
+        max_len = cn.__len__()
+    groups.sort()
+
+    self.__info('Here is your groups list')
+    for group in groups:
+      self.__print_group( group, max_len )
+    return True
+
   @console_handler
   def do_show(self, args):
     """
@@ -346,9 +483,10 @@ class AnsibleInventory_Console(cmd.Cmd):
     {SOMETHING}_REGEX: Regular expression (i.e.: name=test_.* )
     {SOMETHING}_REGEX_LIST: Comma separated list of regular expressions (i.e.: in_groups=test[1-3],example.*)
     """
-    args = self.__validate_args( args )
-    if isinstance(args, str):
-      self.__error( args )
+    try:
+      args = self.__validate_args( args )
+    except AI_Console_ValidationError as e:
+      self.__error( e.__str__() )
       self.do_help('show')
       return False
 
@@ -365,75 +503,7 @@ class AnsibleInventory_Console(cmd.Cmd):
         hosts = self.inventory.list_hosts( name )
       else:
         hosts = self.inventory.list_hosts()
-
-      #( in_groups
-      in_groups = []
-      if 'in_groups' in args_opt:
-        for g_regex in args_opt['in_groups'].split(','):
-          self.inventory.next_from_cache()
-          in_groups += self.inventory.list_groups( g_regex )
-
-        filtered_hosts = []
-        for h in hosts:
-          remove_host = True
-          self.inventory.next_from_cache()
-          h_groups = self.inventory.get_host_groups( h )
-          for g in in_groups:
-            if g in h_groups:
-              remove_host = False
-          if not remove_host:
-            filtered_hosts.append(h)
-
-        hosts = filtered_hosts
-      #) in_groups
-
-      #( vars filter
-      filtered_hosts = []
-      for h in hosts:
-        remove_host = False
-        for v in args_opt:
-          if v not in ('in_groups', 'name'):
-            self.inventory.next_from_cache()
-            if not self.inventory.assert_host_var( h, v, args_opt[v] ):
-              remove_host = True
-        if not remove_host:
-          filtered_hosts.append( h )
-      hosts = filtered_hosts
-      #)
-
-      if not hosts:
-        self.__warn('No host matched')
-        return False
-
-      max_n_len=0
-      for n in hosts:
-        cn = self.C(n)
-        if cn.__len__() > max_n_len:
-          max_n_len = cn.__len__()
-      hosts.sort()
-
-      host_line = ' ╭╴%%-%ds ' % max_n_len
-
-      self.__info('Here is your hosts list')
-      for host in hosts:
-        print( host_line % self.C(host), end='' )
-
-        print('[ ', end='')
-        h_vars =  self.inventory.get_host_vars( host )
-        h_vars_keys = []
-        for v in h_vars:
-          h_vars_keys.append( v )
-        h_vars_keys.sort()
-        for v in h_vars_keys:
-          print( '%s=%s ' % (self.C(v), h_vars[v]), end='')
-        print(']')
-
-        print(' ╰──╴groups╶( ', end='')
-        groups = self.inventory.get_host_groups( host )
-        groups.sort()
-        for g in groups:
-          print( self.C(g)+' ', end='')
-        print(')\n')
+      return self.__show_hosts( hosts, args_opt )
 
     # SHOW GROUP
     if args_pos[1] in ['group', 'groups']:
@@ -441,51 +511,7 @@ class AnsibleInventory_Console(cmd.Cmd):
         groups = self.inventory.list_groups(name)
       else:
         groups = self.inventory.list_groups()
-
-      #( vars filter
-      filtered_groups = []
-      for g in groups:
-        remove_group = False
-        for v in args_opt:
-          if v != 'name':
-            self.inventory.next_from_cache()
-            if not self.inventory.assert_group_var( h, v, args_opt[v] ):
-              remove_group = True
-        if not remove_group:
-          filtered_groups.append( g )
-      groups = filtered_groups
-      #)
-
-      if not groups:
-        self.__warn('No group matched')
-        return False
-
-      max_n_len=0
-      for n in groups:
-        cn = self.C(n)
-        if cn.__len__() > max_n_len:
-          max_n_len = cn.__len__()
-      groups.sort()
-
-      group_line = ' ╭╴%%-%ds [ ' % max_n_len
-
-      self.__info('Here is your groups list')
-      for n in groups:
-        print( group_line % self.C(n), end='' )
-        g_vars =  self.inventory.get_group_vars( n )
-        for v in g_vars:
-          print( '%s=%s ' % (self.C(v), g_vars[v]), end='')
-        print(']')
-
-        print(' ├──╴hosts╶( ', end='')
-        for c in self.inventory.get_group_hosts( n ):
-          print( self.C(c)+' ', end='')
-        print(')')
-
-        print(' ╰──╴child╶{ ', end='')
-        for h in self.inventory.get_group_children( n ):
-          print( self.C(h)+' ', end='')
-        print('}\n')
+      return self.__show_groups( groups, args_opt )
 
     # SHOW TREE
     if args_pos[1] == 'tree':
@@ -494,6 +520,63 @@ class AnsibleInventory_Console(cmd.Cmd):
         return False
       self.__info('Here is the group tree for %s' % self.C( name ))
       self.__print_group_tree( name )
+
+  def __add_host( self, args_opt, to_groups ):
+    'Handle "add host"'
+
+    name = args_opt['name']
+    host = None
+    port = None
+
+    if 'host' in args_opt:
+      if ':' in args_opt['host']:
+        host, port = args_opt['host'].split(':')
+      else:
+        host = args_opt['host']
+
+    if not to_groups:
+      self.inventory.add_host( name, host, port )
+      self.__ok('Host %s added' % self.C(name))
+    else:
+      #TODO: Make add_hosts_to_groups to accept a list of g_regex so no loop is
+      #      required here. That way performanche should be way better.
+      for g_regex in to_groups:
+        self.inventory.add_hosts_to_groups( name, g_regex )
+      self.__ok('Host %s added to groups' % self.C(name))
+    return True
+
+  def __add_group( self, args_opt, to_groups ):
+    'Handle "add group"'
+
+    group = args_opt['name']
+
+    if to_groups:
+      for g_regex in to_groups:
+        self.inventory.add_group_to_groups( group, g_regex )
+      self.__ok('Group %s added to groups' % self.C(group))
+    else:
+      self.inventory.add_group( group )
+      self.__ok('Group %s added' % self.C(group))
+    return True
+
+  def __add_var( self, args_opt, to_groups, to_hosts ):
+    'Handle "add var"'
+
+    for v in args_opt:
+      if v not in ['to_hosts', 'to_groups']:
+        v_name = v
+        v_value = args_opt[v]
+
+    if to_groups:
+      for g_regex in to_groups:
+        self.inventory.add_var_to_groups( v_name, v_value, g_regex )
+      self.__ok('Var %s added to groups with value %s' % ( self.C(v_name), self.C(v_value) ) )
+
+    if to_hosts:
+      for h_regex in to_hosts:
+        self.inventory.add_var_to_hosts( v_name, v_value, h_regex )
+      self.__ok('Var %s added to hosts with value %s' % ( self.C(v_name), self.C(v_value) ) )
+    return True
 
   @console_handler
   def do_add(self, args):
@@ -510,20 +593,23 @@ class AnsibleInventory_Console(cmd.Cmd):
     {SOMETHING}_REGEX: Regular expression (i.e.: name=test_.* )
     {SOMETHING}_REGEX_LIST: Comma separated list of regular expressions (i.e.: in_groups=test[1-3],example.*)
     """
-    args = self.__validate_args( args )
-    if isinstance(args, str):
-      self.__error( args )
+    try:
+      args = self.__validate_args( args )
+    except AI_Console_ValidationError as e:
+      self.__error( e.__str__() )
       self.do_help('add')
       return False
 
     args_opt = args['optional']
     args_pos = args['positional']
 
+    # to_groups used in host and group
     if 'to_groups' in args_opt:
       to_groups = args_opt['to_groups'].split(',')
     else:
       to_groups = []
 
+    # to_hosts used in var
     if 'to_hosts' in args_opt:
       to_hosts = args_opt['to_hosts'].split(',')
     else:
@@ -531,54 +617,93 @@ class AnsibleInventory_Console(cmd.Cmd):
 
     # ADD HOST
     if args_pos[1] == 'host':
-      name = args_opt['name']
-      host = None
-      port = None
-
-      if 'host' in args_opt:
-        if ':' in args_opt['host']:
-          host, port = args_opt['host'].split(':')
-        else:
-          host = args_opt['host']
-
-      if not to_groups:
-        self.inventory.add_host( name, host, port )
-        self.__ok('Host %s added' % self.C(name))
-
-      # ADD HOST: TO_GROUPS
-      else:
-        for g_regex in to_groups:
-          self.inventory.add_hosts_to_groups( name, g_regex )
-        self.__ok('Host %s added to groups' % self.C(name))
+      return self.__add_host( args_opt, to_groups )
 
     # ADD GROUP
     elif args_pos[1] == 'group':
-      group = args_opt['name']
-
-      if to_groups:
-        for g_regex in to_groups:
-          self.inventory.add_group_to_groups( group, g_regex )
-        self.__ok('Group %s added to groups' % self.C(group))
-      else:
-        self.inventory.add_group( group )
-        self.__ok('Group %s added' % self.C(group))
+      return self.__add_group( args_opt, to_groups )
 
     # ADD VAR
     elif args_pos[1] == 'var':
-      for v in args_opt:
-        if v not in ['to_hosts', 'to_groups']:
-          v_name = v
-          v_value = args_opt[v]
+      return self.__add_var( args_opt, to_groups, to_hosts )
 
-      if to_groups:
-        for g_regex in to_groups:
-          self.inventory.add_var_to_groups( v_name, v_value, g_regex )
-        self.__ok('Var %s added to groups with value %s' % ( self.C(v_name), self.C(v_value) ) )
+  def __edit_host( self, args_opt ):
+    'Handle "edit host"'
 
-      if to_hosts:
-        for h_regex in to_hosts:
-          self.inventory.add_var_to_hosts( v_name, v_value, h_regex )
-        self.__ok('Var %s added to hosts with value %s' % ( self.C(v_name), self.C(v_value) ) )
+    name = args_opt['name']
+
+    if 'new_name' in args_opt:
+      msg = self.inventory.rename_host( name, args_opt['new_name'] )
+      if msg:
+        self.__warn(msg)
+      else:
+        self.__ok('Host %s renamed to %s' % ( self.C(name), self.C(args_opt['new_name'])))
+
+    if 'new_host' in args_opt:
+      if ':' in args_opt['new_host']:
+        host, port = args_opt['new_host'].split(':')
+      else:
+        host = args_opt['new_host']
+        port = None
+
+      self.inventory.change_host( name, host, port )
+      self.__ok('Host address for %s changed to %s' % ( self.C(name), self.C(args_opt['new_host'])))
+
+    return True
+
+  def __edit_group( self, args_opt ):
+    'Handle "edit group"'
+
+    g = args_opt['name']
+    msg = self.inventory.rename_group( g, args_opt['new_name'] )
+    if msg:
+      self.__info(msg)
+    else:
+      self.__ok('Group %s renamed to %s' % (g, args_opt['new_name']))
+    return True
+
+  def __edit_var( self, args_opt ):
+    'Handle "edit var"'
+
+    v_name = args_opt['name']
+    new_name = None
+    new_value = None
+    if 'new_name' in args_opt:
+      new_name = args_opt['new_name']
+    if 'new_value' in args_opt:
+      new_value = args_opt['new_value']
+
+    if 'in_groups' in args_opt:
+      in_groups = args_opt['in_groups'].split(',')
+    else:
+      in_groups = []
+
+    if in_groups:
+      if new_name:
+        for g_regex in in_groups:
+          self.inventory.rename_group_var(v_name, new_name, g_regex)
+        self.__ok('Variable %s renamed to %s in selected groups' % (self.C(v_name), self.C(new_name)))
+      if new_value:
+        for g_regex in in_groups:
+          self.inventory.change_group_var(v_name, new_value, g_regex)
+        self.__ok('Variable %s changed to %s in selected groups' % (self.C(v_name), self.C(new_value)))
+
+    if 'in_hosts' in args_opt:
+      in_hosts = args_opt['in_hosts'].split(',')
+    else:
+      in_hosts = []
+
+    if in_hosts:
+      if new_name:
+        for h_regex in in_hosts:
+          self.inventory.rename_host_var(v_name, new_name, h_regex)
+        self.__ok('Variable %s renamed to %s in selected hosts' % (self.C(v_name), self.C(new_name)))
+      if new_value:
+        for h_regex in in_hosts:
+          self.inventory.change_host_var(v_name, new_value, h_regex)
+        self.__ok('Variable %s changed to %s in selected hosts' % (self.C(v_name), self.C(new_value)))
+
+    return True
 
   @console_handler
   def do_edit(self, args):
@@ -595,84 +720,133 @@ class AnsibleInventory_Console(cmd.Cmd):
     {SOMETHING}_REGEX: Regular expression (i.e.: name=test_.* )
     {SOMETHING}_REGEX_LIST: Comma separated list of regular expressions (i.e.: in_groups=test[1-3],example.*)
     """
-    args = self.__validate_args( args )
-    if isinstance(args, str):
-      self.__error( args )
+    try:
+      args = self.__validate_args( args )
+    except AI_Console_ValidationError as e:
+      self.__error( e.__str__() )
       self.do_help('edit')
       return False
 
     args_opt = args['optional']
     args_pos = args['positional']
 
-    if 'in_groups' in args_opt:
-      in_groups = args_opt['in_groups'].split(',')
-    else:
-      in_groups = []
-
-    if 'in_hosts' in args_opt:
-      in_hosts = args_opt['in_hosts'].split(',')
-    else:
-      in_hosts = []
-
     # EDIT HOST
     if args_pos[1] == 'host':
-      name = args_opt['name']
-
-      if 'new_name' in args_opt:
-        msg = self.inventory.rename_host( name, args_opt['new_name'] )
-        if msg:
-          self.__warn(msg)
-        else:
-          self.__ok('Host %s renamed to %s' % ( self.C(name), self.C(args_opt['new_name'])))
-
-      if 'new_host' in args_opt:
-        if ':' in args_opt['new_host']:
-          host, port = args_opt['new_host'].split(':')
-        else:
-          host = args_opt['new_host']
-          port = None
-
-        self.inventory.change_host( name, host, port )
-        self.__ok('Host address for %s changed to %s' % ( self.C(name), self.C(args_opt['new_host'])))
+      return self.__edit_host( args_opt )
 
     # EDIT GROUP
     if args_pos[1] == 'group':
-      g = args_opt['name']
-      msg = self.inventory.rename_group( g, args_opt['new_name'] )
-      if msg:
-        self.__info(msg)
-      else:
-        self.__ok('Group %s renamed to %s' % (g, args_opt['new_name']))
+      return self.__edit_group( args_opt )
 
     # EDIT VAR
     if args_pos[1] == 'var':
-      v_name = args_opt['name']
-      new_name = None
-      new_value = None
-      if 'new_name' in args_opt:
-        new_name = args_opt['new_name']
-      if 'new_value' in args_opt:
-        new_value = args_opt['new_value']
+      return self.__edit_var( args_opt )
 
-      if in_groups:
-        if new_name:
-          for g_regex in in_groups:
-            self.inventory.rename_group_var(v_name, new_name, g_regex)
-          self.__ok('Variable %s renamed to %s in selected groups' % (self.C(v_name), self.C(new_name)))
-        if new_value:
-          for g_regex in in_groups:
-            self.inventory.change_group_var(v_name, new_value, g_regex)
-          self.__ok('Variable %s changed to %s in selected groups' % (self.C(v_name), self.C(new_value)))
+  def __del_host( self, h_regex, from_groups ):
+    'Handle "del host"'
 
-      if in_hosts:
-        if new_name:
-          for h_regex in in_hosts:
-            self.inventory.rename_host_var(v_name, new_name, h_regex)
-          self.__ok('Variable %s renamed to %s in selected hosts' % (self.C(v_name), self.C(new_name)))
-        if new_value:
-          for h_regex in in_hosts:
-            self.inventory.change_host_var(v_name, new_value, h_regex)
-          self.__ok('Variable %s changed to %s in selected hosts' % (self.C(v_name), self.C(new_value)))
+    hosts = self.inventory.list_hosts( h_regex )
+    hosts.sort()
+    c_hosts = []
+    for h in hosts:
+      c_hosts.append( self.C( h ) )
+    if not from_groups:
+      if not hosts:
+        self.__warn('Host pattern %s does not match any host' % self.C(h_regex))
+      elif self.__confirm('The following hosts will be permanently removed: %s.\n            Do you want to proceed?' % ', '.join( c_hosts ) ):
+        for h in hosts:
+          self.inventory.remove_host( h )
+        self.__ok('The hosts have been removed')
+      else:
+        return False
+    else:
+      del_groups = []
+      for g_regex in from_groups:
+        gs = self.inventory.list_groups( g_regex )
+        del_groups += gs
+
+      self.__info('The hosts matching %s would be removed from the following groups:' % self.C(h_regex))
+      for g in del_groups:
+        print( ' '+self.C(g), end='')
+      print('\n')
+      if self.__confirm('Do you want to proceed?'):
+        for h in hosts:
+          self.inventory.remove_host( h_regex, from_groups=del_groups )
+          self.__ok('Host %s removed from groups' % self.C(h))
+
+    return True
+
+  def __del_group( self, g_regex, from_groups ):
+    'Handle "del group"'
+
+    groups = self.inventory.list_groups( g_regex )
+    groups.sort()
+
+    if not from_groups:
+      c_groups = []
+      for g in groups:
+        c_groups.append( self.C( g ) )
+      if not groups:
+        self.__warn('Group pattern %s does not match any group' % self.C(g_regex))
+      elif self.__confirm('The following groups will be permanently removed: %s.\n            Do you want to proceed?' % ', '.join( c_groups ) ):
+        some_error = False
+        for g in groups:
+          msg = self.inventory.remove_group( g )
+          if msg:
+            some_error = True
+            self.__warn( msg )
+        if not some_error:
+          self.__ok('The groups have been removed')
+      else:
+        return False
+    else:
+      del_groups = []
+      for g_rex in from_groups:
+        gs = self.inventory.list_groups( g_rex )
+        del_groups += gs
+
+      self.__info('The groups matching %s would be removed from the following groups:' % self.C(g_regex))
+      for g in del_groups:
+        print( ' '+self.C(g), end='')
+      print('\n')
+      if self.__confirm('Do you want to proceed?'):
+        for g in groups:
+          self.inventory.remove_group( g, from_groups=del_groups )
+          self.__ok('Group %s removed from groups' % self.C(g))
+
+    return True
+
+  def __del_var( self, var_name, from_groups, from_hosts ):
+    'Handle "del var"'
+
+    if from_groups:
+      del_groups = []
+      for g_regex in from_groups:
+        gs = self.inventory.list_groups( g_regex )
+        del_groups += gs
+      self.__info('The variable %s would be removed from the following groups:' % self.C(var_name))
+      for g in del_groups:
+        print( ' '+self.C(g), end='')
+      print('\n')
+      if self.__confirm('Do you want to proceed?'):
+        for g in del_groups:
+          self.inventory.remove_group_var( var_name, g )
+        self.__ok('Variable %s removed from groups' % self.C(var_name))
+    elif from_hosts:
+      del_hosts = []
+      for h_regex in from_hosts:
+        hs = self.inventory.list_hosts( h_regex )
+        del_hosts += hs
+      self.__info('The variable %s would be removed from the following hosts:' % self.C(var_name))
+      for h in del_hosts:
+        print( ' '+self.C(h), end='')
+      print('\n')
+      if self.__confirm('Do you want to proceed?'):
+        for h in del_hosts:
+          self.inventory.remove_host_var( var_name, h )
+        self.__ok('Variable %s removed from hosts' % self.C(var_name))
+
+    return True
 
   @console_handler
   def do_del(self, args):
@@ -687,9 +861,10 @@ class AnsibleInventory_Console(cmd.Cmd):
     {SOMETHING}_REGEX: Regular expression (i.e.: name=test_.* )
     {SOMETHING}_REGEX_LIST: Comma separated list of regular expressions (i.e.: in_groups=test[1-3],example.*)
     """
-    args = self.__validate_args( args )
-    if isinstance(args, str):
-      self.__error( args )
+    try:
+      args = self.__validate_args( args )
+    except AI_Console_ValidationError as e:
+      self.__error( e.__str__() )
       self.do_help('del')
       return False
 
@@ -710,97 +885,15 @@ class AnsibleInventory_Console(cmd.Cmd):
 
     # DEL HOST
     if args_pos[1] == 'host':
-      hosts = self.inventory.list_hosts( name )
-      hosts.sort()
-      c_hosts = []
-      for h in hosts:
-        c_hosts.append( self.C( h ) )
-      if not from_groups:
-        if not hosts:
-          self.__warn('Host pattern %s does not match any host' % self.C(name))
-        elif self.__confirm('The following hosts will be permanently removed: %s.\n            Do you want to proceed?' % ', '.join( c_hosts ) ):
-          for h in hosts:
-            self.inventory.remove_host( h )
-          self.__ok('The hosts have been removed')
-        else:
-          return False
-      else:
-        del_groups = []
-        for g_regex in from_groups:
-          gs = self.inventory.list_groups( g_regex )
-          del_groups += gs
-
-        self.__info('The host %s would be removed from the following groups:' % self.C(name))
-        for g in del_groups:
-          print( ' '+self.C(g), end='')
-        print('\n')
-        if self.__confirm('Do you want to proceed?'):
-          self.inventory.remove_host( name, from_groups=del_groups )
-          self.__ok('Host %s removed from groups' % self.C(name))
+      return self.__del_host( name, from_groups )
 
     # DEL GROUP
     if args_pos[1] == 'group':
-      if not from_groups:
-        groups = self.inventory.list_groups( name )
-        groups.sort()
-        c_groups = []
-        for g in groups:
-          c_groups.append( self.C( g ) )
-        if not groups:
-          self.__warn('Group pattern %s does not match any group' % self.C(name))
-        elif self.__confirm('The following groups will be permanently removed: %s.\n            Do you want to proceed?' % ', '.join( c_groups ) ):
-          some_error = False
-          for g in groups:
-            msg = self.inventory.remove_group( g )
-            if msg:
-              some_error = True
-              self.__warn( msg )
-          if not some_error:
-            self.__ok('The groups have been removed')
-        else:
-          return False
-      else:
-        del_groups = []
-        for g_regex in from_groups:
-          gs = self.inventory.list_groups( g_regex )
-          del_groups += gs
-
-        self.__info('The group %s would be removed from the following groups:' % self.C(name))
-        for g in del_groups:
-          print( ' '+self.C(g), end='')
-        print('\n')
-        if self.__confirm('Do you want to proceed?'):
-          self.inventory.remove_group( name, from_groups=del_groups )
-          self.__ok('Group %s removed from groups' % self.C(name))
+      return self.__del_group( name, from_groups )
 
     # DEL VAR
     if args_pos[1] == 'var':
-      if from_groups:
-        del_groups = []
-        for g_regex in from_groups:
-          gs = self.inventory.list_groups( g_regex )
-          del_groups += gs
-        self.__info('The variable %s would be removed from the following groups:' % self.C(name))
-        for g in del_groups:
-          print( ' '+self.C(g), end='')
-        print('\n')
-        if self.__confirm('Do you want to proceed?'):
-          for g in del_groups:
-            self.inventory.remove_group_var( name, g )
-          self.__ok('Variable %s removed from groups' % self.C(name))
-      elif from_hosts:
-        del_hosts = []
-        for h_regex in from_hosts:
-          hs = self.inventory.list_hosts( h_regex )
-          del_hosts += hs
-        self.__info('The variable %s would be removed from the following hosts:' % self.C(name))
-        for h in del_hosts:
-          print( ' '+self.C(h), end='')
-        print('\n')
-        if self.__confirm('Do you want to proceed?'):
-          for h in del_hosts:
-            self.inventory.remove_host_var( name, h )
-          self.__ok('Variable %s removed from hosts' % self.C(name))
+      return self.__del_var( name, from_groups, from_hosts )
 
   def completedefault(self, text, line, begidx, endidx):
     current_line=line.split()

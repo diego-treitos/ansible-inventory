@@ -265,11 +265,13 @@ class AnsibleInventory:
   @write
   def add_hosts_to_groups(self, h_regex, g_regex):
     'Adds a hosts matching h_regex to groups matching g_regex'
-    matching_hosts = self.__list_hosts( h_regex )
+    self.next_from_cache()
+    matching_hosts = self.list_hosts( h_regex )
     if not matching_hosts:
       raise AnsibleInventory_Exception('No host matches your selection')
 
-    matching_groups = self.__list_groups( g_regex )
+    self.next_from_cache()
+    matching_groups = self.list_groups( g_regex )
     if not matching_groups:
       raise AnsibleInventory_Exception('No group matches your selection')
 
@@ -285,7 +287,8 @@ class AnsibleInventory:
   @write
   def add_host(self, h_name, h_host=None, h_port=None ):
     'Adds a host'
-    if h_name in self.__list_hosts():
+    self.next_from_cache()
+    if h_name in self.list_hosts():
       raise AnsibleInventory_Exception('Host %s already exists', h_name)
     else:
       self.I['all']['hosts'].append( h_name )
@@ -311,10 +314,12 @@ class AnsibleInventory:
   @write
   def add_group_to_groups(self, group, g_regex):
     'Adds a single group to groups matching g_regex'
-    if group not in self.__list_groups():
+    self.next_from_cache()
+    if group not in self.list_groups():
       raise AnsibleInventory_Exception('Group %s does not exist', targets=group)
 
-    matching_groups = self.__list_groups( g_regex )
+    self.next_from_cache()
+    matching_groups = self.list_groups( g_regex )
     if not matching_groups:
       raise AnsibleInventory_Exception('No group matches your selection')
 
@@ -335,7 +340,8 @@ class AnsibleInventory:
   @write
   def add_var_to_groups(self, v_name, raw_value, g_regex):
     'Adds a variable a to groups matching g_regex'
-    matching_groups = self.__list_groups( g_regex )
+    self.next_from_cache()
+    matching_groups = self.list_groups( g_regex )
     if not matching_groups:
       raise AnsibleInventory_Exception('No group matches your selection')
 
@@ -364,7 +370,8 @@ class AnsibleInventory:
   @write
   def add_var_to_hosts(self, v_name, raw_value, h_regex):
     'Adds a variable to hosts matching h_regex'
-    matching_hosts = self.__list_hosts( h_regex )
+    self.next_from_cache()
+    matching_hosts = self.list_hosts( h_regex )
     if not matching_hosts:
       raise AnsibleInventory_Exception('No host matches your selection')
 
@@ -384,7 +391,8 @@ class AnsibleInventory:
   @write
   def rename_host(self, h_name, new_name):
     'Renames a host'
-    hosts = self.__list_hosts()
+    self.next_from_cache()
+    hosts = self.list_hosts()
     if new_name in hosts:
       raise AnsibleInventory_Exception('Host %s already exists', new_name)
     if h_name not in hosts:
@@ -404,7 +412,8 @@ class AnsibleInventory:
   @write
   def change_host(self, h_name, h_host=None, h_port=None):
     'Changes the host address or port of a host'
-    if h_name not in self.__list_hosts():
+    self.next_from_cache()
+    if h_name not in self.list_hosts():
       raise AnsibleInventory_Exception('Host %s does not exist', h_name)
     if h_host:
       self.__set_host_host( h_name, h_host )
@@ -414,7 +423,8 @@ class AnsibleInventory:
   @write
   def rename_host_var(self, v_name, new_name, h_regex):
     'Renames a variable in a set of hosts matching a regular expression'
-    for h in self.__list_hosts():
+    self.next_from_cache()
+    for h in self.list_hosts():
       if fullmatch( h_regex, h ) and h in self.I['_meta']['hostvars'] and v_name in self.I['_meta']['hostvars'][h]:
         v_value = self.I['_meta']['hostvars'][h].pop(v_name)
         self.I['_meta']['hostvars'][h][new_name] = v_value
@@ -422,7 +432,8 @@ class AnsibleInventory:
   @write
   def change_host_var(self, v_name, raw_value, h_regex):
     'Changes the value of a variable in the hosts matching a regular expression in case it is defined'
-    for h in self.__list_hosts():
+    self.next_from_cache()
+    for h in self.list_hosts():
       if fullmatch( h_regex, h ) and h in self.I['_meta']['hostvars'] and v_name in self.I['_meta']['hostvars'][h]:
         self.I['_meta']['hostvars'][h][v_name] = self.__parse_var( raw_value )
 
