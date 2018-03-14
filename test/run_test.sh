@@ -12,7 +12,7 @@ ANSIBLE_HOME="$HOME/.ansible"
 
 prepare() {
     # Copy config file
-    cp "test/ansible-inventory.cfg" "$HOME/.ansible/"
+    cp "test/ansible-inventory.cfg" "$ANSIBLE_HOME"
 
     # Copy test inventory
     cp "test/ansible_test_inventory.json" "/tmp"
@@ -82,8 +82,8 @@ ai_tests=(
     'del host test.* from_groups=vp1.*,vp2.*'
     'del host htest1'
     'del host test.*'
-    'del group gtest1 from_groups=vp1.*,vp2.*'
-    'del group gtest1'
+    'del group group1test from_groups=vp1.*,vp2.*'
+    'del group group1test'
     'del group vp1.*|vp2.*'
 )
 
