@@ -191,17 +191,14 @@ class AnsibleInventory_Console(cmd.Cmd):
 
     elif cmd == 'show':
       if l2cmd in ['host', 'hosts']:
-        l2cmd_opts = ['name', 'in_groups']
+        l2cmd_opts = ['name', 'in_groups', 'ANY']
         l2cmd_combs = [
-          [],
-          ['name'],
-          ['name', 'in_groups'],
+          ['ANY'],
         ]
       elif l2cmd in ['group', 'groups']:
-        l2cmd_opts = ['name']
+        l2cmd_opts = ['name', 'in_groups', 'ANY']
         l2cmd_combs = [
-          [],
-          ['name']
+          ['ANY'],
         ]
       elif l2cmd in ['tree']:
         l2cmd_opts = ['name']
@@ -216,15 +213,16 @@ class AnsibleInventory_Console(cmd.Cmd):
       return 'Wrong subcommand %s' % l2cmd
 
     # Check optional arguments
-    for a in args_dict['optional']:
-      if a not in l2cmd_opts:
-        return 'Invalid argument %s' % a
+    if 'ANY' not in l2cmd_opts:
+      for a in args_dict['optional']:
+        if a not in l2cmd_opts:
+          return 'Invalid argument %s' % a
     valid=False
     pos_args = list(args_dict['optional'].keys())
     pos_args.sort()
     for c in l2cmd_combs:
       c.sort()
-      if pos_args == c:
+      if pos_args == c or 'ANY' in c:
         valid=True
     if not valid:
       return 'Invalid arguments'
@@ -338,8 +336,8 @@ class AnsibleInventory_Console(cmd.Cmd):
   @console_handler
   def do_show(self, args):
     """
-    show host(s) [[name=]HOST_REGEX] [in_groups=GROUP_REGEX_LIST]
-    show group(s) [[name=]GROUPS_REGEX]
+    show host(s) [[name=]HOST_REGEX] [in_groups=GROUP_REGEX_LIST] [VAR_NAME=VAR_VALUE] [VAR_NAME=VAR_VALUE] ...
+    show group(s) [[name=]GROUPS_REGEX] [VAR_NAME=VAR_VALUE] [VAR_NAME=VAR_VALUE] ...
     show tree <[name=]GROUP>
 
     HOST: Domain name or IP of the host
@@ -368,10 +366,6 @@ class AnsibleInventory_Console(cmd.Cmd):
       else:
         hosts = self.inventory.list_hosts()
 
-      if not hosts:
-        self.__warn('No host matched')
-        return False
-
       #( in_groups
       in_groups = []
       if 'in_groups' in args_opt:
@@ -392,6 +386,24 @@ class AnsibleInventory_Console(cmd.Cmd):
 
         hosts = filtered_hosts
       #) in_groups
+
+      #( vars filter
+      filtered_hosts = []
+      for h in hosts:
+        remove_host = False
+        for v in args_opt:
+          if v not in ('in_groups', 'name'):
+            self.inventory.next_from_cache()
+            if not self.inventory.assert_host_var( h, v, args_opt[v] ):
+              remove_host = True
+        if not remove_host:
+          filtered_hosts.append( h )
+      hosts = filtered_hosts
+      #)
+
+      if not hosts:
+        self.__warn('No host matched')
+        return False
 
       max_n_len=0
       for n in hosts:
@@ -429,6 +441,20 @@ class AnsibleInventory_Console(cmd.Cmd):
         groups = self.inventory.list_groups(name)
       else:
         groups = self.inventory.list_groups()
+
+      #( vars filter
+      filtered_groups = []
+      for g in groups:
+        remove_group = False
+        for v in args_opt:
+          if v != 'name':
+            self.inventory.next_from_cache()
+            if not self.inventory.assert_group_var( h, v, args_opt[v] ):
+              remove_group = True
+        if not remove_group:
+          filtered_groups.append( g )
+      groups = filtered_groups
+      #)
 
       if not groups:
         self.__warn('No group matched')
