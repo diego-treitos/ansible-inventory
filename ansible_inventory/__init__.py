@@ -259,6 +259,24 @@ class AnsibleInventory:
     'Returns a list of groups where a host belongs'
     return self.__get_host_groups( host )
 
+  @read
+  def assert_host_var(self, host, v_name, v_value_regex ):
+    'Checks if a host has a variable with v_name with a matching value of v_value_regex'
+    self.next_from_cache()
+    h_vars = self.get_host_vars( host )
+    if v_name in h_vars and fullmatch( v_value_regex, h_vars[v_name] ):
+      return True
+    return False
+
+  @read
+  def assert_group_var(self, group, v_name, v_value_regex ):
+    'Checks if a group has a variable with v_name with a matching value of v_value_regex'
+    self.next_from_cache()
+    g_vars = self.get_group_vars( group )
+    if v_name in h_vars and fullmatch( v_value_regex, h_vars[v_name] ):
+      return True
+    return False
+
   @write
   def add_hosts_to_groups(self, h_regex, g_regex):
     'Adds a hosts matching h_regex to groups matching g_regex'
