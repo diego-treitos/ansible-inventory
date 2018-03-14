@@ -263,15 +263,17 @@ class AnsibleInventory:
     return False
 
   @write
-  def add_hosts_to_groups(self, h_regex, g_regex):
-    'Adds a hosts matching h_regex to groups matching g_regex'
+  def add_hosts_to_groups(self, h_regex, g_regex_list):
+    'Adds a hosts matching h_regex to groups matching g_regex from a list'
     self.next_from_cache()
     matching_hosts = self.list_hosts( h_regex )
     if not matching_hosts:
       raise AnsibleInventory_Exception('No host matches your selection')
 
-    self.next_from_cache()
-    matching_groups = self.list_groups( g_regex )
+    matching_groups = []
+    for g_regex in g_regex_list:
+      self.next_from_cache()
+      matching_groups += self.list_groups( g_regex )
     if not matching_groups:
       raise AnsibleInventory_Exception('No group matches your selection')
 

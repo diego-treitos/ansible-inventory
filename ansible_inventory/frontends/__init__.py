@@ -538,10 +538,7 @@ class AnsibleInventory_Console(cmd.Cmd):
       self.inventory.add_host( name, host, port )
       self.__ok('Host %s added' % self.C(name))
     else:
-      #TODO: Make add_hosts_to_groups to accept a list of g_regex so no loop is
-      #      required here. That way performanche should be way better.
-      for g_regex in to_groups:
-        self.inventory.add_hosts_to_groups( name, g_regex )
+      self.inventory.add_hosts_to_groups( name, to_groups )
       self.__ok('Host %s added to groups' % self.C(name))
     return True
 
