@@ -6,10 +6,10 @@
 - show:
     - host: # (shows host(s) with host_vars and groups)
         name: <name> #name=<name> #BASE #XXX  ( filter by host name )
-        var: <var_name> # var=<var_name> #XXX ( filter by var name ) TODO
+        var: <var_name=value> # <var_name>=<var_value> #XXX ( filter by var value)
     - group: # (shows group(s) with group_vars)
         name: <name> #name=<name> #BASE #XXX 
-        var: <var_name> # var=<var_name> #XXX ( filter by var name ) TODO
+        var: <var_name=value> # <var_name>=<var_value> #XXX ( filter by var value)
     - tree: <name> #name=<name> #BASE ( show group tree )
 
 - add:
