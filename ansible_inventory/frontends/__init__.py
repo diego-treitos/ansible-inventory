@@ -365,7 +365,7 @@ class AnsibleInventory_Console(cmd.Cmd):
         if isinstance( e_vars[v], dict ):
           colorful_dict = highlight(json.dumps(e_vars[v], sort_keys=True, indent=2),
                                     lexers.JsonLexer(),
-                                    formatters.TerminalFormatter())
+                                    formatters.Terminal256Formatter(style='vim'))
           colorful_dict = colorful_dict.replace("\n", "\n  │       │ ")
           e_line+= var_line % (self.C(v), colorful_dict)
         else:
