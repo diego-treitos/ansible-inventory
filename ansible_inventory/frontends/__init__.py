@@ -2,11 +2,14 @@
 # vim: set ts=2 sw=2 sts=2 et:
 
 import cmd
+import json
 import readline
 import signal
+import subprocess
 import sys
 from ansible_inventory.lib import AnsibleInventory_Color, AnsibleInventory_Exception, AnsibleInventory_WarnException, AnsibleInventory_InfoException
 from ansible_inventory.globals import VERSION, AUTHOR_NAME, AUTHOR_MAIL, URL
+from pygments import highlight, lexers, formatters
 
 
 class AI_Console_ValidationError(Exception):
@@ -337,51 +340,105 @@ class AnsibleInventory_Console(cmd.Cmd):
           prel = preline + ' │'
         self.__print_group_tree( g, level+1, preline=prel, last_node=last_child==g)
 
+  def __print_vars( self, e_vars ):
+    e_line = ''
+    e_vars_keys = []
+    for v in e_vars:
+      e_vars_keys.append( v )
+
+    if e_vars_keys:
+      e_vars_keys.sort()
+      last_key = e_vars_keys[-1]
+      longest_key = self.C(e_vars_keys[0]).__len__()
+      for v in e_vars_keys:
+        if self.C(v).__len__() > longest_key:
+          longest_key = self.C(v).__len__()
+
+      for v in e_vars_keys:
+        if v == last_key:
+          e_line+= '  │       ╰'
+        else:
+          e_line+= '  │       ├'
+
+        var_line = '╴%%-%ds = %%s\n' % longest_key
+
+        if isinstance( e_vars[v], dict ):
+          colorful_dict = highlight(json.dumps(e_vars[v], sort_keys=True, indent=2),
+                                    lexers.JsonLexer(),
+                                    formatters.TerminalFormatter())
+          colorful_dict = colorful_dict.replace("\n", "\n  │       │ ")
+          e_line+= var_line % (self.C(v), colorful_dict)
+        else:
+          e_line+= var_line % (self.C(v), e_vars[v])
+
+    return e_line
+
+  def __print_list( self, e_list, start, newline ):
+    rows, columns = subprocess.check_output(['stty', 'size']).split()
+    rows = int(rows)
+    columns = int(columns)
+    lines=start
+    line_cols=start.__len__()
+
+    for e in e_list:
+      e_cols = e.__len__()
+      if line_cols+e_cols+1 > columns:
+        lines += newline + self.C(e)
+        line_cols = newline.__len__() + e_cols
+      else:
+        lines += ' ' + self.C(e)
+        line_cols+= 1 + e_cols
+    return lines
+
   def __print_host( self, host, max_len ):
-      host_line = ' ╭╴%%-%ds ' % max_len
+    host_line = '\n'
+    host_line+= '             ╭─%s─╮\n' % ('─'*host.__len__())
+    host_line+= '  ╭──────────┤ %s │\n' % self.C(host)
+    host_line+= '  ├─╴vars╶╮  ╰─%s─╯\n' % ('─'*host.__len__())
 
-      print( host_line % self.C(host), end='' )
+    self.inventory.next_from_cache()
+    h_vars =  self.inventory.get_host_vars( host )
 
-      print('[ ', end='')
-      self.inventory.next_from_cache()
-      h_vars =  self.inventory.get_host_vars( host )
-      h_vars_keys = []
-      for v in h_vars:
-        h_vars_keys.append( v )
-      h_vars_keys.sort()
-      for v in h_vars_keys:
-        print( '%s=%s ' % (self.C(v), h_vars[v]), end='')
-      print(']')
+    host_line+= self.__print_vars( h_vars )
 
-      print(' ╰──╴groups╶( ', end='')
-      self.inventory.next_from_cache()
-      groups = self.inventory.get_host_groups( host )
-      groups.sort()
-      for g in groups:
-        print( self.C(g)+' ', end='')
-      print(')\n')
+    host_line+= '  │\n'
+
+    self.inventory.next_from_cache()
+    groups = self.inventory.get_host_groups( host )
+    groups.sort()
+    host_line+= self.__print_list( groups, '  ╰─╴groups╶(', '\n  │   ' )
+    host_line+= ' )'
+    print(host_line)
 
   def __print_group( self, group, max_len ):
-      group_line = ' ╭╴%%-%ds [ ' % max_len
+    group_line = '\n'
+    group_line+= '             ╭─%s─╮\n' % ('─'*group.__len__())
+    group_line+= '  ╭──────────┤ %s │\n' % self.C(group)
+    group_line+= '  ├─╴vars╶╮  ╰─%s─╯\n' % ('─'*group.__len__())
 
-      print( group_line % self.C(group), end='' )
-      self.inventory.next_from_cache()
-      g_vars =  self.inventory.get_group_vars( group )
-      for v in g_vars:
-        print( '%s=%s ' % (self.C(v), g_vars[v]), end='')
-      print(']')
+    self.inventory.next_from_cache()
+    g_vars =  self.inventory.get_group_vars( group )
 
-      print(' ├──╴hosts╶( ', end='')
-      self.inventory.next_from_cache()
-      for c in self.inventory.get_group_hosts( group ):
-        print( self.C(c)+' ', end='')
-      print(')')
+    vars_line = self.__print_vars( g_vars )
+    if vars_line:
+      group_line+=vars_line
+    else:
+      group_line = group_line.replace( 'vars╶╮', 'vars  ' )
+    group_line+= '  │\n'
 
-      print(' ╰──╴child╶{ ', end='')
-      self.inventory.next_from_cache()
-      for h in self.inventory.get_group_children( group ):
-        print( self.C(h)+' ', end='')
-      print('}\n')
+    self.inventory.next_from_cache()
+    hosts = self.inventory.get_group_hosts( group )
+    hosts.sort()
+    group_line+= self.__print_list( hosts, '  ├─╴hosts╶(', '\n  │   ' )
+    group_line+= ' )\n'
+    group_line+= '  │\n'
+
+    self.inventory.next_from_cache()
+    child = self.inventory.get_group_children( group )
+    child.sort()
+    group_line+= self.__print_list( child, '  ╰─╴child╶[', '\n      ' )
+    group_line+= ' ]'
+    print( group_line )
 
   def __show_hosts( self, hosts, args_opt ):
     'Handle "show hosts" command'
@@ -435,7 +492,6 @@ class AnsibleInventory_Console(cmd.Cmd):
     self.__info('Here is your hosts list')
     for host in hosts:
       self.__print_host( host, max_len )
-    return True
 
   def __show_groups( self, groups, args_opt ):
     'Handle "show groups" command'
@@ -468,7 +524,6 @@ class AnsibleInventory_Console(cmd.Cmd):
     self.__info('Here is your groups list')
     for group in groups:
       self.__print_group( group, max_len )
-    return True
 
   @console_handler
   def do_show(self, args):
