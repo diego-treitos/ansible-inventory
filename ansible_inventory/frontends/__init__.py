@@ -340,7 +340,7 @@ class AnsibleInventory_Console(cmd.Cmd):
           prel = preline + ' │'
         self.__print_group_tree( g, level+1, preline=prel, last_node=last_child==g)
 
-  def __print_vars( self, e_vars ):
+  def __print_vars( self, e_vars, pre_middle_var, pre_last_var ):
     e_line = ''
     e_vars_keys = []
     for v in e_vars:
@@ -356,9 +356,9 @@ class AnsibleInventory_Console(cmd.Cmd):
 
       for v in e_vars_keys:
         if v == last_key:
-          e_line+= '  │       ╰'
+          e_line+= pre_last_var
         else:
-          e_line+= '  │       ├'
+          e_line+= pre_middle_var
 
         var_line = '╴%%-%ds = %%s\n' % longest_key
 
@@ -399,7 +399,7 @@ class AnsibleInventory_Console(cmd.Cmd):
     self.inventory.next_from_cache()
     h_vars =  self.inventory.get_host_vars( host )
 
-    host_line+= self.__print_vars( h_vars )
+    host_line+= self.__print_vars( h_vars, '  │       ├', '  │       ╰' )
 
     host_line+= '  │\n'
 
@@ -412,31 +412,32 @@ class AnsibleInventory_Console(cmd.Cmd):
 
   def __print_group( self, group, max_len ):
     group_line = '\n'
-    group_line+= '             ╭─%s─╮\n' % ('─'*group.__len__())
-    group_line+= '  ╭──────────┤ %s │\n' % self.C(group)
-    group_line+= '  ├─╴vars╶╮  ╰─%s─╯\n' % ('─'*group.__len__())
+    group_line+= '             ╭╌%s╌╮\n' % ('╌'*group.__len__())
+    group_line+= '  ╭╌╌╌╌╌╌╌╌╌╌┤ %s ┆\n' % self.C(group)
+    group_line+= '  ├╶╴vars╶╮  ╰╌%s╌╯\n' % ('╌'*group.__len__())
 
     self.inventory.next_from_cache()
     g_vars =  self.inventory.get_group_vars( group )
 
-    vars_line = self.__print_vars( g_vars )
+    vars_line = self.__print_vars( g_vars, '  ┆       ├', '  ┆       ╰' )
+
     if vars_line:
       group_line+=vars_line
     else:
       group_line = group_line.replace( 'vars╶╮', 'vars  ' )
-    group_line+= '  │\n'
+    group_line+= '  ┆\n'
 
     self.inventory.next_from_cache()
     hosts = self.inventory.get_group_hosts( group )
     hosts.sort()
-    group_line+= self.__print_list( hosts, '  ├─╴hosts╶(', '\n  │   ' )
+    group_line+= self.__print_list( hosts, '  ├╴╴hosts╶(', '\n  ┆   ' )
     group_line+= ' )\n'
-    group_line+= '  │\n'
+    group_line+= '  ┆\n'
 
     self.inventory.next_from_cache()
     child = self.inventory.get_group_children( group )
     child.sort()
-    group_line+= self.__print_list( child, '  ╰─╴child╶[', '\n      ' )
+    group_line+= self.__print_list( child, '  ╰╴╴child╶[', '\n      ' )
     group_line+= ' ]'
     print( group_line )
 
