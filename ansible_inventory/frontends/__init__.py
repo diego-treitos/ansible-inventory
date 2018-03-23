@@ -379,9 +379,12 @@ class AnsibleInventory_Console(cmd.Cmd):
     return e_line
 
   def __print_list( self, e_list, start, newline ):
-    rows, columns = subprocess.check_output(['stty', 'size']).split()
-    rows = int(rows)
-    columns = int(columns)
+    try:
+      rows, columns = subprocess.check_output(['stty', 'size']).split()
+      rows = int(rows)
+      columns = int(columns)
+    except:
+      rows, columns = 25, 80
     lines=start
     line_cols=start.__len__()
 
