@@ -313,17 +313,19 @@ class AnsibleInventory_Console(cmd.Cmd):
         g_link = '├'
 
       if level == 0:
-        print('  ╭─'+'─'*group.__len__()+'─╮')
-        print(' ╭┤ %s │' % self.C( group ))
-        print(' │╰─'+'─'*group.__len__()+'─╯')
+        print('     ╭─'+'─'*group.__len__()+'─╮')
+        print(' ╭───┤ %s │' % self.C( group ))
+        print(' │   ╰─'+'─'*group.__len__()+'─╯')
       else:
+        print( preline +'\b\b │' )
         if last_node:
-          print( preline +'\b\b │' )
+          print( preline +'\b\b │', end='' )
         else:
-          print( preline )
+          print( preline, end='' )
+        print('     ╭─%s─╮' % ('─'*group.__len__()) )
         print( preline, end='' )
         print('\b\b %s' % g_link, end='')
-        print('─%s─[%s]' % (g_fork, self.C( group )) )
+        print('─%s───╯ %s ╵' % (g_fork, self.C( group )) )
 
       for h in hosts:
         print( preline, end='')
