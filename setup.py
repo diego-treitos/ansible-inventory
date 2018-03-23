@@ -44,11 +44,11 @@ DATA_FILES={}
 
 #-- PYPI VARS --
 PYPI_DOWNLOAD_URL='https://github.com/diego-treitos/ansible-inventory/archive/v'+VERSION+'.tar.gz'
-PYPI_DEPENS=['redis', 'Pygments']
+PYPI_DEPENDS=['redis', 'Pygments']
 PYPI_KEYWORDS=['ansible', 'inventory', 'dynamic', 'management']
 
 #-- DEB VARS --
-DEB_DEPENDS=['python3']
+DEB_DEPENDS=['python3', 'python3-pygments']
 DEB_RECOMMENDS=['python3-redis']
 DEB_SETUP_DIR='setup.files'
 
@@ -148,6 +148,7 @@ setup(
   data_files = DATA_FILES,
   # Requirements
   python_requires = '>=3',
+  install_requires = PYPI_DEPENDS
 )
 
 # PostSetup
