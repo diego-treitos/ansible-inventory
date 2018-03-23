@@ -9,7 +9,6 @@ import subprocess
 import sys
 from ansible_inventory.lib import AnsibleInventory_Color, AnsibleInventory_Exception, AnsibleInventory_WarnException, AnsibleInventory_InfoException
 from ansible_inventory.globals import VERSION, AUTHOR_NAME, AUTHOR_MAIL, URL
-from pygments import highlight, lexers, formatters
 
 
 class AI_Console_ValidationError(Exception):
@@ -365,11 +364,15 @@ class AnsibleInventory_Console(cmd.Cmd):
         var_line = '╴%%-%ds = %%s\n' % longest_key
 
         if isinstance( e_vars[v], dict ):
-          colorful_dict = highlight(json.dumps(e_vars[v], sort_keys=True, indent=2),
-                                    lexers.JsonLexer(),
-                                    formatters.Terminal256Formatter(style='vim'))
-          colorful_dict = colorful_dict.replace("\n", "\n  │       │ ")
-          e_line+= var_line % (self.C(v), colorful_dict)
+          if self.color.use_colors:
+            from pygments import highlight, lexers, formatters
+            var_dict = highlight(json.dumps(e_vars[v], sort_keys=True, indent=2),
+                                      lexers.JsonLexer(),
+                                      formatters.Terminal256Formatter(style='vim'))
+            var_dict = var_dict.replace("\n", "\n  │       │ ")
+          else:
+            var_dict = json.dumps(e_vars[v], sort_keys=True, indent=2).replace("\n", "\n  │       │ ")
+          e_line+= var_line % (self.C(v), var_dict)
         else:
           e_line+= var_line % (self.C(v), e_vars[v])
 
