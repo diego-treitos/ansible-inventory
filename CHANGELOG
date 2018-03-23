@@ -1,3 +1,43 @@
+v0.5.16 - Mar 23, 2018
+----------------------
+
+- Bugfixes
+- Improved tree display
+
+
+v0.5.12 - Mar 22, 2018
+----------------------
+
+- Info presentation overhaul
+
+
+v0.5.7 - Mar 14, 2018
+---------------------
+
+- Bugfixes and improvements
+- Improved performance when adding hosts to groups
+
+
+v0.5.2 - Mar 14, 2018
+---------------------
+
+- Ansible Inventory Restructured
+- Performance improvements
+- Added filters for showing hosts
+
+
+v0.3.11 - Jan 16, 2018
+----------------------
+
+- Now ansible-inventory accepts lists or dicts as variable values
+
+
+v0.3.10 - Jan 16, 2018
+----------------------
+
+- IMPORTANT: Renamed ansible-inventory executable to ansible-inv
+
+
 v0.3.9 - Sep 08, 2017
 ---------------------
 
