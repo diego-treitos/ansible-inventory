@@ -461,12 +461,12 @@ class AnsibleInventory_Console(cmd.Cmd):
 
       filtered_hosts = []
       for h in hosts:
-        remove_host = True
+        remove_host = False
         self.inventory.next_from_cache()
         h_groups = self.inventory.get_host_groups( h )
         for g in in_groups:
-          if g in h_groups:
-            remove_host = False
+          if g not in h_groups:
+            remove_host = True
         if not remove_host:
           filtered_hosts.append(h)
 
