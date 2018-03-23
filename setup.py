@@ -44,7 +44,7 @@ DATA_FILES={}
 
 #-- PYPI VARS --
 PYPI_DOWNLOAD_URL='https://github.com/diego-treitos/ansible-inventory/archive/v'+VERSION+'.tar.gz'
-PYPI_DEPENS=['redis']
+PYPI_DEPENS=['redis', 'Pygments']
 PYPI_KEYWORDS=['ansible', 'inventory', 'dynamic', 'management']
 
 #-- DEB VARS --
