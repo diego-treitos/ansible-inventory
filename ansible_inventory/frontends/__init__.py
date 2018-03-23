@@ -1025,6 +1025,21 @@ class AnsibleInventory_Console(cmd.Cmd):
               else:
                 subtarget = None
 
+          if cmd == 'show':
+            if kind in ('host', 'hosts'):
+              if target is None or target in 'in_groups':
+                return __comp( 'host', text ) + ['in_groups=']
+              elif target.startswith('in_groups='):
+                if subtarget is None and text != '':
+                  subtarget = target
+                else:
+                  return __comp( 'var', text )
+            if kind in ('group', 'groups'):
+              if target and not text:
+                return __comp( 'var', text )
+              else:
+                return __comp( 'group', text )
+
           if subtarget is not None:
             if 'groups=' in text or 'hosts=' in text:
               part = text.split('=')[1].split(',')[ -1 ]
