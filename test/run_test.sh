@@ -9,13 +9,12 @@ ANSIBLE_HOME="$HOME/.ansible"
 [ ! -d "$ANSIBLE_HOME" ] && mkdir "$ANSIBLE_HOME"
 
 
-
 prepare() {
     # Copy config file
     cp "test/ansible-inventory.cfg" "$ANSIBLE_HOME"
 
     # Import test inventory
-    ./ansible-inv --import "test/ansible_test_inventory.json"
+    echo "y" | ./ansible-inv --import "test/ansible_test_inventory.json"
 }
 
 exec_cmd() {
