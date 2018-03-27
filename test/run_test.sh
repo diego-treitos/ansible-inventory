@@ -14,10 +14,9 @@ prepare() {
     # Copy config file
     cp "test/ansible-inventory.cfg" "$ANSIBLE_HOME"
 
-    # Copy test inventory
-    cp "test/ansible_test_inventory.json" "/tmp"
+    # Import test inventory
+    ./ansible-inv --import "test/ansible_test_inventory.json"
 }
-
 
 exec_cmd() {
     cmd="$*"
@@ -55,8 +54,16 @@ ai_tests=(
     'show hosts'
     'show hosts d.*'
     'show hosts asdfasdd.*'
+    'show hosts in_groups=.*aco2'
+    'show hosts d.* in_groups=.*aco2'
+    'show hosts master_host=.*:3306'
+    'show hosts d.* master_host=.*:3306'
+    'show hosts in_groups=.*aco1 master_host=.*:3306'
+    'show hosts d.* in_groups=.*aco1 master_host=.*:3306'
     'show groups'
     'show groups v.*'
+    'show groups custom_user=labrego'
+    'show groups v.* custom_user=labrego'
     'show groups asdfasdd.*'
     'show tree vp1_our1'
     'add host test1'
