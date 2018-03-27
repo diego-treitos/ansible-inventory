@@ -65,7 +65,9 @@ if __name__ == '__main__':
     else:
       sys.exit( 1 )
 
-    inventory = AnsibleInventory( AI_FileBackend( json_file_import ) )
+    inventory = AnsibleInventory(
+      AI_FileBackend( { "path": json_file_import }, config )
+    )
     inventory.backend = config.backend['class']( config.backend['parameters'], config)
     inventory.save()
     sys.exit( 0 )
