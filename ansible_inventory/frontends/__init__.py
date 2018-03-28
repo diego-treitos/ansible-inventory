@@ -604,7 +604,6 @@ class AnsibleInventory_Console(cmd.Cmd):
     else:
       self.inventory.add_hosts_to_groups( name, to_groups )
       self.__ok('Host %s added to groups' % self.C(name))
-    return True
 
   def __add_group( self, args_opt, to_groups ):
     'Handle "add group"'
@@ -618,7 +617,6 @@ class AnsibleInventory_Console(cmd.Cmd):
     else:
       self.inventory.add_group( group )
       self.__ok('Group %s added' % self.C(group))
-    return True
 
   def __add_var( self, args_opt, to_groups, to_hosts ):
     'Handle "add var"'
@@ -637,7 +635,6 @@ class AnsibleInventory_Console(cmd.Cmd):
       for h_regex in to_hosts:
         self.inventory.add_var_to_hosts( v_name, v_value, h_regex )
       self.__ok('Var %s added to hosts with value %s' % ( self.C(v_name), self.C(v_value) ) )
-    return True
 
   @console_handler
   def do_add(self, args):
@@ -678,15 +675,15 @@ class AnsibleInventory_Console(cmd.Cmd):
 
     # ADD HOST
     if args_pos[1] == 'host':
-      return self.__add_host( args_opt, to_groups )
+      self.__add_host( args_opt, to_groups )
 
     # ADD GROUP
     elif args_pos[1] == 'group':
-      return self.__add_group( args_opt, to_groups )
+      self.__add_group( args_opt, to_groups )
 
     # ADD VAR
     elif args_pos[1] == 'var':
-      return self.__add_var( args_opt, to_groups, to_hosts )
+      self.__add_var( args_opt, to_groups, to_hosts )
 
   def __edit_host( self, args_opt ):
     'Handle "edit host"'
@@ -710,8 +707,6 @@ class AnsibleInventory_Console(cmd.Cmd):
       self.inventory.change_host( name, host, port )
       self.__ok('Host address for %s changed to %s' % ( self.C(name), self.C(args_opt['new_host'])))
 
-    return True
-
   def __edit_group( self, args_opt ):
     'Handle "edit group"'
 
@@ -721,7 +716,6 @@ class AnsibleInventory_Console(cmd.Cmd):
       self.__info(msg)
     else:
       self.__ok('Group %s renamed to %s' % (g, args_opt['new_name']))
-    return True
 
   def __edit_var( self, args_opt ):
     'Handle "edit var"'
@@ -764,8 +758,6 @@ class AnsibleInventory_Console(cmd.Cmd):
           self.inventory.change_host_var(v_name, new_value, h_regex)
         self.__ok('Variable %s changed to %s in selected hosts' % (self.C(v_name), self.C(new_value)))
 
-    return True
-
   @console_handler
   def do_edit(self, args):
     """
@@ -793,15 +785,15 @@ class AnsibleInventory_Console(cmd.Cmd):
 
     # EDIT HOST
     if args_pos[1] == 'host':
-      return self.__edit_host( args_opt )
+      self.__edit_host( args_opt )
 
     # EDIT GROUP
     if args_pos[1] == 'group':
-      return self.__edit_group( args_opt )
+      self.__edit_group( args_opt )
 
     # EDIT VAR
     if args_pos[1] == 'var':
-      return self.__edit_var( args_opt )
+      self.__edit_var( args_opt )
 
   def __del_host( self, h_regex, from_groups ):
     'Handle "del host"'
@@ -834,8 +826,6 @@ class AnsibleInventory_Console(cmd.Cmd):
         for h in hosts:
           self.inventory.remove_host( h_regex, from_groups=del_groups )
           self.__ok('Host %s removed from groups' % self.C(h))
-
-    return True
 
   def __del_group( self, g_regex, from_groups ):
     'Handle "del group"'
@@ -875,8 +865,6 @@ class AnsibleInventory_Console(cmd.Cmd):
           self.inventory.remove_group( g, from_groups=del_groups )
           self.__ok('Group %s removed from groups' % self.C(g))
 
-    return True
-
   def __del_var( self, var_name, from_groups, from_hosts ):
     'Handle "del var"'
 
@@ -906,8 +894,6 @@ class AnsibleInventory_Console(cmd.Cmd):
         for h in del_hosts:
           self.inventory.remove_host_var( var_name, h )
         self.__ok('Variable %s removed from hosts' % self.C(var_name))
-
-    return True
 
   @console_handler
   def do_del(self, args):
@@ -946,15 +932,15 @@ class AnsibleInventory_Console(cmd.Cmd):
 
     # DEL HOST
     if args_pos[1] == 'host':
-      return self.__del_host( name, from_groups )
+      self.__del_host( name, from_groups )
 
     # DEL GROUP
     if args_pos[1] == 'group':
-      return self.__del_group( name, from_groups )
+      self.__del_group( name, from_groups )
 
     # DEL VAR
     if args_pos[1] == 'var':
-      return self.__del_var( name, from_groups, from_hosts )
+      self.__del_var( name, from_groups, from_hosts )
 
   def completedefault(self, text, line, begidx, endidx):
     current_line=line.split()
