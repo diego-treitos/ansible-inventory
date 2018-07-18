@@ -1,3 +1,5 @@
+![Build Status](https://jenkins.treitos.com/buildStatus/icon?job=ansible-inventory)
+
 # ansible-inventory
 Script to manage your Ansible Inventory and also can be used by ansible as a dynamic inventory source
 
