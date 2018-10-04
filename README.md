@@ -58,6 +58,7 @@ backend = file
 
 [ file_backend]
 path = ~/.ansible/inventory.json
+pretty = False
 
 [ redis_backend]
 host =
