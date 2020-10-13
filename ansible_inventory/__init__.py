@@ -340,6 +340,49 @@ class AnsibleInventory:
         self.I[g]['children'].append( group )
 
   @write
+  def edit_host_vars(self, h_name, callback):
+    'Edits host vars by calling "callback( vars_dict )". It locks the inventory until callback returns with a new "vars_dict" with the new vars.'
+    self.next_from_cache()
+    hosts = self.list_hosts()
+    if h_name not in hosts:
+      raise AnsibleInventory_Exception('Host %s does not exist', h_name)
+
+    if h_name in self.I['_meta']['hostvars']:
+      h_vars = self.I['_meta']['hostvars'][h_name]
+    else:
+      h_vars = {}
+
+    new_vars = callback( h_vars )
+
+    if new_vars and isinstance(new_vars, dict):
+      self.I['_meta']['hostvars'][h_name] = new_vars
+
+  @write
+  def edit_group_vars(self, g_name, callback):
+    'Edits group vars by calling "callback( vars_dict )". It locks the inventory until callback returns with a new "vars_dict" with the new vars.'
+    self.next_from_cache()
+    groups = self.list_groups()
+    if g_name not in groups:
+      raise AnsibleInventory_Exception('Group %s does not exist', g_name)
+
+    if isinstance( self.I[g_name], list):
+      hosts = self.I[g_name]
+      self.I[g_name] = {
+        'hosts': hosts,
+        'vars': {},
+        'children': []
+      }
+    elif isinstance( self.I[g_name], dict) and 'vars' not in self.I[g_name]:
+      self.I[g_name]['vars'] = {}
+
+    g_vars = self.I[g_name]['vars']
+
+    new_vars = callback( g_vars )
+
+    if new_vars and isinstance(new_vars, dict):
+      self.I[g_name]['vars'] = new_vars
+
+  @write
   def add_var_to_groups(self, v_name, raw_value, g_regex):
     'Adds a variable a to groups matching g_regex'
     self.next_from_cache()

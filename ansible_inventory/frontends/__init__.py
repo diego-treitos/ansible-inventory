@@ -3,10 +3,13 @@
 
 import cmd
 import json
+import os
 import readline
 import signal
 import subprocess
 import sys
+import tempfile
+import yaml
 from ansible_inventory.lib import AnsibleInventory_Color, AnsibleInventory_Exception, AnsibleInventory_WarnException, AnsibleInventory_InfoException
 from ansible_inventory.globals import VERSION, AUTHOR_NAME, AUTHOR_MAIL, URL
 
@@ -173,6 +176,12 @@ class AnsibleInventory_Console(cmd.Cmd):
           ['name', 'new_name', 'in_groups'],
           ['name', 'new_value', 'in_hosts'],
           ['name', 'new_value', 'in_groups']
+        ]
+      elif l2cmd == 'vars':
+        l2cmd_opts = ['in_host', 'in_group']
+        l2cmd_combs = [
+          ['in_host'],
+          ['in_group']
         ]
 
     elif cmd == 'del':
@@ -358,20 +367,22 @@ class AnsibleInventory_Console(cmd.Cmd):
       for v in e_vars_keys:
         if v == last_key:
           e_line+= pre_last_var
+          json_pre=' '
         else:
           e_line+= pre_middle_var
+          json_pre='│'
 
         var_line = '╴%%-%ds = %%s\n' % longest_key
 
-        if isinstance( e_vars[v], dict ):
+        if isinstance( e_vars[v], dict ) or isinstance( e_vars[v], list ):
           if self.color.use_colors:
             from pygments import highlight, lexers, formatters
             var_dict = highlight(json.dumps(e_vars[v], sort_keys=True, indent=2),
                                       lexers.JsonLexer(),
                                       formatters.Terminal256Formatter(style='vim'))
-            var_dict = var_dict.replace("\n", "\n  │       │ ")
+            var_dict = var_dict.replace("\n", "\n  │       %s " % json_pre)
           else:
-            var_dict = json.dumps(e_vars[v], sort_keys=True, indent=2).replace("\n", "\n  │       │ ")
+            var_dict = json.dumps(e_vars[v], sort_keys=True, indent=2).replace("\n", "\n  │       %s " % json_pre)
           e_line+= var_line % (self.C(v), var_dict)
         else:
           e_line+= var_line % (self.C(v), e_vars[v])
@@ -758,6 +769,47 @@ class AnsibleInventory_Console(cmd.Cmd):
           self.inventory.change_host_var(v_name, new_value, h_regex)
         self.__ok('Variable %s changed to %s in selected hosts' % (self.C(v_name), self.C(new_value)))
 
+  def __editor( self, dict_data ):
+    "Converts 'dict_data to YAML and places it in a file, which is opened with $EDITOR and the result is converted back to dict and returned'"
+    tmpfile = tempfile.mkstemp( suffix=".yml", text=True )
+    new_dict_data = None
+    editor = os.getenv('EDITOR')
+    if not editor:
+      self.__error( 'The EDITOR environment variable is empty.' )
+
+    try:
+      with open(tmpfile[1], 'w') as t:
+        yaml.dump( dict_data, t, default_flow_style=False, indent=4)
+    except:
+      self.__error( 'Could not load current variables')
+      return dict_data
+
+    try:
+      os.system( "%s %s" % (editor, tmpfile[1]) )
+    except:
+      self.__error( 'Error running the editor')
+      return dict_data
+
+    try:
+      with open(tmpfile[1]) as t:
+        new_dict_data = yaml.full_load(t)
+    except:
+      self.__error( 'Could not write the new variables')
+      return dict_data
+
+    if not new_dict_data:
+      return dict_data
+
+    return new_dict_data
+
+  def __edit_vars( self, args_opt ):
+    'Handle "edit vars" which opens $EDITOR'
+
+    if 'in_group' in args_opt:
+      self.inventory.edit_group_vars( args_opt['in_group'], self.__editor )
+    if 'in_host' in args_opt:
+      self.inventory.edit_host_vars( args_opt['in_host'], self.__editor )
+
   @console_handler
   def do_edit(self, args):
     """
@@ -766,12 +818,16 @@ class AnsibleInventory_Console(cmd.Cmd):
     edit group <[name=]GROUP> <new_name=NEW_NAME>
     edit var   <[name=]VAR_NAME> <new_name=NEW_NAME> <[in_hosts=HOST_REGEX_LIST | in_groups=GROUP_REGEX_LIST]>
     edit var   <[name=]VAR_NAME> <new_value=NEW_VALUE> <[in_hosts=HOST_REGEX_LIST | in_groups=GROUP_REGEX_LIST]>
+    edit vars  <[in_host=HOST | in_group=GROUP]>
 
     HOST: Domain name or IP of the host
+    GROUP: Group name
     VAR_NAME: Variable name
     VAR_VALUE: Variable value
     {SOMETHING}_REGEX: Regular expression (i.e.: name=test_.* )
     {SOMETHING}_REGEX_LIST: Comma separated list of regular expressions (i.e.: in_groups=test[1-3],example.*)
+
+    NOTE: "edit vars" will open your $EDITOR to edit the vars in YAML format.
     """
     try:
       args = self.__validate_args( args )
@@ -794,6 +850,10 @@ class AnsibleInventory_Console(cmd.Cmd):
     # EDIT VAR
     if args_pos[1] == 'var':
       self.__edit_var( args_opt )
+
+    # EDIT VARS
+    if args_pos[1] == 'vars':
+      self.__edit_vars( args_opt )
 
   def __del_host( self, h_regex, from_groups ):
     'Handle "del host"'
@@ -962,7 +1022,8 @@ class AnsibleInventory_Console(cmd.Cmd):
         'var'  : {
           'new_name' : { 'in_hosts': None, 'in_groups': None },
           'new_value': { 'in_hosts': None, 'in_groups': None },
-        }
+        },
+        'vars' : { 'in_host': None, 'in_group': None },
       },
       'show': {
         'host': { 'in_groups': None },
@@ -985,11 +1046,17 @@ class AnsibleInventory_Console(cmd.Cmd):
     if cmd in cmd_map:
       if current_line.__len__() > 1:
         kind = current_line[ 1 ]
-        if kind not in cmd_map[ cmd ].keys():
-          for sc in cmd_map[ cmd ]:
-            if sc.startswith( kind ):
-              return [ sc+' ' ]
+        possible_scs=[]
+        for sc in cmd_map[ cmd ]:
+          if sc.startswith( kind ):
+            possible_scs.append( sc )
+
+        if kind not in cmd_map[ cmd ].keys() or possible_scs.__len__() > 1:
+            return possible_scs
         else:
+          if line[-1] != ' ':
+            return [ kind + ' ' ]
+
           options = list(cmd_map[ cmd ][ kind ].keys())
 
           if current_line.__len__() > 2:
