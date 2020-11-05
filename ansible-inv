@@ -25,7 +25,6 @@ import sys
 from ansible_inventory import AnsibleInventory
 from ansible_inventory.backends import AnsibleInventory_FileBackend as AI_FileBackend
 from ansible_inventory.config import AnsibleInventory_Config as AI_Config
-from ansible_inventory.frontends import AnsibleInventory_Console as AI_Console
 # )
 
 # ( CONFIG
@@ -76,14 +75,6 @@ if __name__ == '__main__':
   inventory = AnsibleInventory(
     config.backend['class']( config.backend['parameters'], config )
   )
-  console = AI_Console( inventory, config )
-
-  # Import
-  if args.command:
-    config.use_colors = False
-    cmd = args.command
-    console.onecmd( cmd )
-    sys.exit( 0 )
 
   # Ansible requests
   if args.list:
@@ -93,6 +84,17 @@ if __name__ == '__main__':
   if args.host:
     host = args.host
     print( inventory.get_ansible_host_json(host) )
+    sys.exit( 0 )
+
+  # Instantiate console frontend
+  from ansible_inventory.frontends import AnsibleInventory_Console as AI_Console
+  console = AI_Console( inventory, config )
+  
+  # Import
+  if args.command:
+    config.use_colors = False
+    cmd = args.command
+    console.onecmd( cmd )
     sys.exit( 0 )
 
   # Main console loop
