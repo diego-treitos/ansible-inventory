@@ -106,7 +106,7 @@ class AnsibleInventory_RedisBackend( AnsibleInventory_Backend ):
     "Locks the backend for reading and writting"
     # Try to get the lock or raise exception on timeout
     t=0
-    while not self.r.set( self.__lock_name, self.uuid, nx=True, px=self.__timeout*1000 ):
+    while not self.r.set( self.__lock_name, self.uuid, nx=True ):
       if t >= self.__timeout:
         raise BlockingIOError
       time.sleep( 0.5 )
