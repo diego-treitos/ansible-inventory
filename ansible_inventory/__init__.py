@@ -249,7 +249,7 @@ class AnsibleInventory:
     'Checks if a host has a variable with v_name with a matching value of v_value_regex'
     self.next_from_cache()
     h_vars = self.get_host_vars( host )
-    if v_name in h_vars and fullmatch( v_value_regex, h_vars[v_name] ):
+    if v_name in h_vars and fullmatch( v_value_regex, str(h_vars[v_name]) ):
       return True
     return False
 
@@ -258,7 +258,7 @@ class AnsibleInventory:
     'Checks if a group has a variable with v_name with a matching value of v_value_regex'
     self.next_from_cache()
     g_vars = self.get_group_vars( group )
-    if v_name in g_vars and fullmatch( v_value_regex, g_vars[v_name] ):
+    if v_name in g_vars and fullmatch( v_value_regex, str(g_vars[v_name]) ):
       return True
     return False
 
