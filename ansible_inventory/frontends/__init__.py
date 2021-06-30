@@ -1069,19 +1069,25 @@ class AnsibleInventory_Console(cmd.Cmd):
       },
       'show': {
         'host': {
-          'HOSTS': { 'in_groups=': 'GROUPS', 'VARS': None },
+          'HOSTS': {
+            'in_groups=': 'GROUPS',
+            'VARS': { 'VARS': { 'VARS': None } }
+          }
         },
         'hosts': {
-          'HOSTS': { 'in_groups=': 'GROUPS', 'VARS': None },
+          'HOSTS': {
+            'in_groups=': 'GROUPS',
+            'VARS': { 'VARS': { 'VARS': None } }
+          }
         },
         'group': {
           'GROUPS': {
-            'VARS': None
+            'VARS': { 'VARS': { 'VARS': None } }
           }
         },
         'groups': {
           'GROUPS': {
-            'VARS': None
+            'VARS': { 'VARS': { 'VARS': None } }
           }
         },
         'tree': {}
