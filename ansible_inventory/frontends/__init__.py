@@ -1002,120 +1002,145 @@ class AnsibleInventory_Console(cmd.Cmd):
     if args_pos[1] == 'var':
       self.__del_var( name, from_groups, from_hosts )
 
+  def completenames(self, text, *ignored):
+    """Override class method to add an space after main command completion"""
+    return [a+' ' for a in super(AnsibleInventory_Console, self).completenames(text, *ignored)]
+
   def completedefault(self, text, line, begidx, endidx):
     current_line=line.split()
-    cmd = current_line[ 0 ]
+    wildcards = ('HOSTS', 'VARS', 'GROUPS')  # Used to autocomplete hosts, vars and groups
     cmd_map = {
       'add' : {
-        'host' : { 'host': None, 'to_groups': None },
-        'group': { 'to_groups': None },
-        'var'  : { 'to_hosts': None, 'to_groups': None }
+        'host' : {
+          'HOSTS': {
+            'host=': None,
+            'to_groups=': 'GROUPS'
+          }
+        },
+        'group': {
+          'GROUPS': {
+            'to_groups=': 'GROUPS'
+          }
+        },
+        'var'  : {
+          'VARS': {
+            'to_hosts=': 'HOSTS',
+            'to_groups=': 'GROUPS'
+          }
+        }
       },
       'del' : {
-        'host' : { 'from_groups': None },
-        'group': { 'from_groups': None },
-        'var'  : { 'from_hosts': None, 'from_groups': None }
+        'host' : {
+          'HOSTS': {
+            'from_groups=': 'GROUPS'
+          }
+        },
+        'group': {
+          'GROUPS': {
+            'from_groups=': 'GROUPS'
+          }
+        },
+        'var'  : {
+          'VARS': {
+            'from_hosts=': 'HOSTS',
+            'from_groups=': 'GROUPS'
+          }
+        },
       },
       'edit': {
-        'host' : { 'new_name': None, 'new_host': None },
-        'group': { 'new_name': None },
-        'var'  : {
-          'new_name' : { 'in_hosts': None, 'in_groups': None },
-          'new_value': { 'in_hosts': None, 'in_groups': None },
+        'host' : {
+          'HOSTS': {'new_name=': None, 'new_host=': None },
         },
-        'vars' : { 'in_host': None, 'in_group': None },
+        'group': {
+          'GROUPS': { 'new_name=': None },
+        },
+        'var'  : {
+          'VARS': {
+            'new_name' : { 'in_hosts=': 'HOSTS', 'in_groups=': 'GROUPS' },
+            'new_value': { 'in_hosts=': 'HOSTS', 'in_groups=': 'GROUPS' },
+          }
+        },
+        'vars' : { 'in_host=': None, 'in_group=': None },
       },
       'show': {
-        'host': { 'in_groups': None },
-        'hosts': { 'in_groups': None },
-        'group': {},
-        'groups': {},
+        'host': {
+          'HOSTS': { 'in_groups=': 'GROUPS', 'VARS': None },
+        },
+        'hosts': {
+          'HOSTS': { 'in_groups=': 'GROUPS', 'VARS': None },
+        },
+        'group': {
+          'GROUPS': {
+            'VARS': None
+          }
+        },
+        'groups': {
+          'GROUPS': {
+            'VARS': None
+          }
+        },
         'tree': {}
       },
     }
 
     def __comp( _kind, _text ):
       self.inventory.next_from_cache()
-      if _kind == 'host':
+      if _kind in ('host', 'HOSTS'):
         return self.inventory.list_hosts( _text+'.*' )
-      elif _kind == 'var':
+      elif _kind in ('var', 'VARS'):
         return self.inventory.list_vars( _text+'.*' )
       else:
         return self.inventory.list_groups( _text+'.*' )
 
-    if cmd in cmd_map:
-      if current_line.__len__() > 1:
-        kind = current_line[ 1 ]
-        possible_scs=[]
-        for sc in cmd_map[ cmd ]:
-          if sc.startswith( kind ):
-            possible_scs.append( sc )
+    def __get_completions( _list, _text, _prepend ):
+      possibles = []
+      for i in _list:
+        # autocomplete hosts, vars or groups
+        if i in wildcards:
+          if _prepend:
+            _text = _text[len( _prepend ):]
+          for p in __comp(i, _text):
+            possibles.append( _prepend+p )
+        elif i.startswith( _text ):
+          possibles.append( i )
+      return possibles
 
-        if kind not in cmd_map[ cmd ].keys() or possible_scs.__len__() > 1:
-            return possible_scs
+    if line[-1] == ' ':
+      # We need to check for the next command
+      current_partial = ''
+    else:
+      current_partial = current_line[-1]
+
+    current_dict_cmd = cmd_map
+    prepend=''
+    for pc in current_line:
+      wildcards_in_keys = list(set(current_dict_cmd.keys()) & set(wildcards))
+      # Not completing, just geting the path to follow
+      if wildcards_in_keys and not pc == current_partial:
+        #  ^-- On a wildcard           ^-- Not completing the wildcard anymore
+        current_dict_cmd = current_dict_cmd[ wildcards_in_keys[0] ]
+        prepend=''
+      elif pc.split('=')[0]+"=" in current_dict_cmd.keys():
+        current_dict_cmd = {current_dict_cmd[ pc.split('=')[0]+"=" ]:None}
+        prepend=pc.split('=')[0]+"="
+        if ',' in pc:
+          prepend+=','.join(pc.split('=')[1].split(',')[:-1])+','
+      elif pc in current_dict_cmd.keys():
+        current_dict_cmd = current_dict_cmd[ pc ]
+        prepend=''
+
+    completions = __get_completions( current_dict_cmd.keys(), current_partial, prepend)
+
+    if current_partial:
+      if not completions:
+        return [ current_partial ]
+
+      if completions.__len__() == 1:
+        if completions[0][-1] in ('=', ','):
+          return [ completions[0] ]
+        elif prepend:
+          return [ completions[0] + ',' ]
         else:
-          if line[-1] != ' ':
-            return [ kind + ' ' ]
+          return [ completions[0] + ' ' ]
 
-          options = list(cmd_map[ cmd ][ kind ].keys())
-
-          if current_line.__len__() > 2:
-            target = current_line[ 2 ]
-          else:
-            target = None
-
-          if current_line.__len__() > 3:
-            subtarget = current_line[ 3 ]
-            options = list(cmd_map[ cmd ][ kind ].keys())
-          else:
-            subtarget = None
-
-          if current_line.__len__() > 4 or (current_line.__len__() == 4 and not text):
-            if cmd == 'edit' and kind == 'var' and subtarget.startswith('new_'):
-              options = list(cmd_map[ cmd ][ kind ][ subtarget.split('=')[0] ].keys())
-              if current_line.__len__() > 4:
-                subtarget = current_line[ 4 ]
-              else:
-                subtarget = None
-
-          if cmd == 'show':
-            if kind in ('host', 'hosts'):
-              if target is None or target in 'in_groups':
-                return __comp( 'host', text ) + ['in_groups=']
-              elif target.startswith('in_groups='):
-                if subtarget is None and text != '':
-                  subtarget = target
-                else:
-                  return __comp( 'var', text )
-            if kind in ('group', 'groups'):
-              if target and not text:
-                return __comp( 'var', text )
-              else:
-                return __comp( 'group', text )
-
-          if subtarget is not None:
-            if 'groups=' in text or 'hosts=' in text:
-              part = text.split('=')[1].split(',')[ -1 ]
-              prepart = text.rpartition(',')[0]
-              if prepart:
-                prepart+=','
-              else:
-                prepart = text.split('=')[0]+'='
-              if 'hosts=' in text:
-                return [ prepart+x for x in __comp('host', part) ]
-              return [ prepart+x for x in __comp('group', part) ]
-            else:
-              opt = []
-              for o in [ op+'=' for op in options ]:
-                if o.startswith( text ):
-                  opt.append( o )
-              return opt or options
-
-          if target is not None:
-            if text:
-              return __comp( kind, text )
-            return options
-          return __comp( kind, text )
-      else:
-        return list(cmd_map[ cmd ].keys())
-    return []
+    return completions
