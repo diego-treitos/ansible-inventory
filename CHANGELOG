@@ -1,3 +1,9 @@
+v0.5.20 - Nov 05, 2020
+----------------------
+
+- Instantiating console only when needed. This should solve some problems with scripts.
+
+
 v0.5.19 - Mar 28, 2018
 ----------------------
 

@@ -40,6 +40,11 @@ class AnsibleInventory_FileBackend( AnsibleInventory_Backend ):
     if not os.path.isabs( self.json_path ):
       self.json_path = os.path.join( config.config_home, self.json_path )
 
+    if 'pretty' in backend_parameters and backend_parameters['pretty'].lower() in ("true", "1", "yes", "on"):
+      self.pretty = True
+    else:
+      self.pretty = False
+
   def load_inventory(self):
     "Returns a dictionary with the inventory contents as required by Inventory class"
     if os.path.exists( self.json_path ):
@@ -53,7 +58,10 @@ class AnsibleInventory_FileBackend( AnsibleInventory_Backend ):
     "Saves the inventory from a dictionary with the inventory contents from the Inventory class"
     with SimpleFlock( self.lockfile, timeout=3 ):
       with open( self.json_path, 'w' ) as inv_file:
-        inv_file.write( json.dumps( inventory ) )
+        if self.pretty:
+            inv_file.write( json.dumps( inventory, sort_keys=True, indent=4 ) )
+        else:
+            inv_file.write( json.dumps( inventory ) )
 
   def lock(self):
     "Locks the backend for reading and writting"
