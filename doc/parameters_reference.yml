@@ -6,9 +6,10 @@
 - show:
     - host: # (shows host(s) with host_vars and groups)
         name: <name> #name=<name> #BASE #XXX  ( filter by host name )
+        in_groups: <group1>[,<group2>[,<group3>[...]]] #in_groups=group1,group2,etc #XXX
         var: <var_name=value> # <var_name>=<var_value> #XXX ( filter by var value)
     - group: # (shows group(s) with group_vars)
-        name: <name> #name=<name> #BASE #XXX 
+        name: <name> #name=<name> #BASE #XXX
         var: <var_name=value> # <var_name>=<var_value> #XXX ( filter by var value)
     - tree: <name> #name=<name> #BASE ( show group tree )
 
@@ -39,6 +40,10 @@
         new_value: <new_value> #new_value=<new_value>
         in_hosts: <host1>[,<host2>[,<host3>[...]]] #in_hosts=host1,host2,etc #XXX
         in_groups: <group1>[,<group2>[,<group3>[...]]] #in_groups=group1,group2,etc #XXX
+    - vars:
+        in_host: <host> #in_host=<host>      # Opens vars YAML in $EDITOR
+        in_group: <group> #in_group=<group>  # Opens vars YAML in $EDITOR
+
 
 - del:
     - host:
