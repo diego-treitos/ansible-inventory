@@ -14,6 +14,11 @@ from ansible_inventory.lib import AnsibleInventory_Color, AnsibleInventory_Excep
 from ansible_inventory.globals import VERSION, AUTHOR_NAME, AUTHOR_MAIL, URL
 
 
+class MyYamlDumper(yaml.Dumper):
+    def increase_indent(self, flow=False, indentless=False):
+        return super(MyYamlDumper, self).increase_indent(flow, False)
+
+
 class AI_Console_ValidationError(Exception):
   pass
 
@@ -779,7 +784,7 @@ class AnsibleInventory_Console(cmd.Cmd):
 
     try:
       with open(tmpfile[1], 'w') as t:
-        yaml.dump( dict_data, t, default_flow_style=False, indent=4)
+        yaml.dump( dict_data, t, Dumper=MyYamlDumper, default_flow_style=False, indent=4)
     except:
       self.__error( 'Could not load current variables')
       return dict_data
