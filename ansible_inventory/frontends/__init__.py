@@ -1060,7 +1060,7 @@ class AnsibleInventory_Console(cmd.Cmd):
             'new_value': { 'in_hosts=': 'HOSTS', 'in_groups=': 'GROUPS' },
           }
         },
-        'vars' : { 'in_host=': None, 'in_group=': None },
+        'vars' : { 'in_host=': 'HOSTS', 'in_group=': 'GROUPS'},
       },
       'show': {
         'host': {
@@ -1092,18 +1092,28 @@ class AnsibleInventory_Console(cmd.Cmd):
       else:
         return self.inventory.list_groups( _text+'.*' )
 
-    def __get_completions( _list, _text, _prepend ):
+    def __get_completions( _list, _text, _prepend='' ):
       possibles = []
       for i in _list:
         # autocomplete hosts, vars or groups
         if i in wildcards:
+          post=''
+          if i == 'VARS':
+            post='='
           if _prepend:
             _text = _text[len( _prepend ):]
           for p in __comp(i, _text):
-            possibles.append( _prepend+p )
+            possibles.append( _prepend+p+post )
         elif i.startswith( _text ):
           possibles.append( i )
       return possibles
+
+    def __completion_matches( _key, _list ):
+      count=0
+      for k in list(_list):
+        if k.startswith( _key ):
+          count+=1
+      return count
 
     if line[-1] == ' ':
       # We need to check for the next command
@@ -1126,8 +1136,12 @@ class AnsibleInventory_Console(cmd.Cmd):
         if ',' in pc:
           prepend+=','.join(pc.split('=')[1].split(',')[:-1])+','
       elif pc in current_dict_cmd.keys():
-        current_dict_cmd = current_dict_cmd[ pc ]
-        prepend=''
+        if pc == current_partial:
+          # if we have just completed, return to add trailing space
+          break
+        if __completion_matches( pc,  current_dict_cmd.keys() ) == 1 or not current_partial.startswith( pc ):
+          current_dict_cmd = current_dict_cmd[ pc ]
+          prepend=''
 
     completions = __get_completions( current_dict_cmd.keys(), current_partial, prepend)
 
@@ -1139,7 +1153,7 @@ class AnsibleInventory_Console(cmd.Cmd):
         if completions[0][-1] in ('=', ','):
           return [ completions[0] ]
         elif prepend:
-          return [ completions[0] + ',' ]
+          return [ completions[0] ]
         else:
           return [ completions[0] + ' ' ]
 
