@@ -273,9 +273,10 @@ class AnsibleInventory:
     matching_groups = []
     for g_regex in g_regex_list:
       self.next_from_cache()
-      matching_groups += self.list_groups( g_regex )
-    if not matching_groups:
-      raise AnsibleInventory_Exception('No group matches your selection')
+      m_groups = self.list_groups( g_regex )
+      if not m_groups:
+        raise AnsibleInventory_Exception("No group matches '%s'" % g_regex)
+      matching_groups += m_groups
 
     for h_name in matching_hosts:
       for g_name in matching_groups:
