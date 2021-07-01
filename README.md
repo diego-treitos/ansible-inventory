@@ -1,4 +1,4 @@
-![Build Status](https://jenkins.treitos.com/buildStatus/icon?job=ansible-inventory)
+![Build Status](https://jenkins.treitos.com/buildStatus/icon?job=ansible-inventory&style=flat-square)
 
 # ansible-inventory
 Script to manage your Ansible Inventory and also can be used by ansible as a dynamic inventory source
@@ -19,6 +19,7 @@ When you have to change a variable that is in several hosts or groups, or you ne
  * Multiple backends: redis, file. ( may add more in the future )
  * Concurrent users support
  * Interactive console
+ * Edit host or group vars in YAML format
  * Autocompletion
  * Tree display for groups
  * Multiple deploy support ( production, development, etc )
@@ -28,11 +29,11 @@ When you have to change a variable that is in several hosts or groups, or you ne
 ## Installation
 Ansible Inventory requires python3. In case you want to use the `redis` backend, you will also need to install [redis-py]( https://github.com/andymccurdy/redis-py ) (`sudo apt-get install python3-redis`).
 
-You can install `ansible-inventory` using `pip3` 
+You can install `ansible-inventory` using `pip3`
 
 ```
 pip3 install ansible-inventory
-``` 
+```
 
 You can also just download the `ansible-inventory` script and place it wherever you want inside your `PATH`.
 
@@ -134,7 +135,3 @@ So you could call ansible this way:
 ```
 AI_ENV=development ansible -m ping all
 ```
-
-
-# BETA STATUS
-This software is in beta status. Please use with caution.
