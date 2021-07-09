@@ -146,7 +146,7 @@ class AnsibleInventory:
     'Parses a var and returns a string, a list or a dict'
     try:
       v_value = ast.literal_eval( raw_value )
-    except:
+    except Exception:
       v_value = raw_value
     return v_value
 

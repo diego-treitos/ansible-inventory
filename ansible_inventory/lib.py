@@ -65,7 +65,7 @@ class SimpleFlock:
       # exists by examining the filesystem.
       try:
          os.unlink(self._path)
-      except:
+      except Exception:
          pass
 
 

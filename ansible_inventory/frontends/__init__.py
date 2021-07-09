@@ -399,7 +399,7 @@ class AnsibleInventory_Console(cmd.Cmd):
       rows, columns = subprocess.check_output(['stty', 'size']).split()
       rows = int(rows)
       columns = int(columns)
-    except:
+    except Exception:
       rows, columns = 25, 80
     lines=start
     line_cols=start.__len__()
@@ -785,20 +785,20 @@ class AnsibleInventory_Console(cmd.Cmd):
     try:
       with open(tmpfile[1], 'w') as t:
         yaml.dump( dict_data, t, Dumper=MyYamlDumper, default_flow_style=False, indent=4)
-    except:
+    except Exception:
       self.__error( 'Could not load current variables')
       return dict_data
 
     try:
       os.system( "%s %s" % (editor, tmpfile[1]) )
-    except:
+    except Exception:
       self.__error( 'Error running the editor')
       return dict_data
 
     try:
       with open(tmpfile[1]) as t:
         new_dict_data = yaml.full_load(t)
-    except:
+    except Exception:
       self.__error( 'Could not write the new variables')
       return dict_data
 
@@ -1142,7 +1142,7 @@ class AnsibleInventory_Console(cmd.Cmd):
         current_dict_cmd = current_dict_cmd[ wildcards_in_keys[0] ]
         prepend=''
       elif pc.split('=')[0]+"=" in current_dict_cmd.keys():
-        current_dict_cmd = {current_dict_cmd[ pc.split('=')[0]+"=" ]:None}
+        current_dict_cmd = {current_dict_cmd[ pc.split('=')[0]+"=" ]: None}
         prepend=pc.split('=')[0]+"="
         if ',' in pc:
           prepend+=','.join(pc.split('=')[1].split(',')[:-1])+','
@@ -1150,7 +1150,7 @@ class AnsibleInventory_Console(cmd.Cmd):
         if pc == current_partial:
           # if we have just completed, return to add trailing space
           break
-        if __completion_matches( pc,  current_dict_cmd.keys() ) == 1 or not current_partial.startswith( pc ):
+        if __completion_matches( pc, current_dict_cmd.keys() ) == 1 or not current_partial.startswith( pc ):
           current_dict_cmd = current_dict_cmd[ pc ]
           prepend=''
 

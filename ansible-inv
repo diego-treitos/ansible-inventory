@@ -89,7 +89,7 @@ if __name__ == '__main__':
   # Instantiate console frontend
   from ansible_inventory.frontends import AnsibleInventory_Console as AI_Console
   console = AI_Console( inventory, config )
-  
+
   # Import
   if args.command:
     config.use_colors = False
