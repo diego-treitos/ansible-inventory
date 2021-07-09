@@ -122,5 +122,5 @@ class AnsibleInventory_RedisBackend( AnsibleInventory_Backend ):
 
   def unlock(self):
     "Unlocks the backend"
-    if self.r.get( self.__lock_name ) == self.uuid:
+    if self.r.get( self.__lock_name ).decode("ascii") == self.uuid:
       self.r.delete( self.__lock_name )
