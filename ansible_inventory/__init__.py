@@ -10,7 +10,7 @@ from ansible_inventory.lib import AnsibleInventory_Exception
 class AnsibleInventory:
 
   # Inventory variable
-  I = None
+  __I = None
 
 ### Internal inventory format
 #{
@@ -81,40 +81,40 @@ class AnsibleInventory:
 
   def __ensure_inventory_skel(self):
     'Ensures the basic structure of the inventory is pressent'
-    if '_meta' not in self.I:
-      self.I['_meta'] = {}
-    if 'all' not in self.I:
-      self.I['all'] = {
+    if '_meta' not in self.__I:
+      self.__I['_meta'] = {}
+    if 'all' not in self.__I:
+      self.__I['all'] = {
         'children': [],
         'hosts': [],
         'vars': {}
       }
-    if 'hostvars' not in self.I['_meta']:
-      self.I['_meta']['hostvars'] = {}
+    if 'hostvars' not in self.__I['_meta']:
+      self.__I['_meta']['hostvars'] = {}
 
   def save(self):
     "Saves the inventory to persistence backend"
-    self.backend.save_inventory( self.I )
+    self.backend.save_inventory( self.__I )
 
   def reload(self):
     "Loads the inventory from the persistence backend"
-    self.I = self.backend.load_inventory()
+    self.__I = self.backend.load_inventory()
     self.__ensure_inventory_skel()
 
   def __get_group_hosts(self, group):
     'Internal: Returns a list of hosts in a group'
-    if group in self.I:
-      if isinstance( self.I[group], list):
-        return self.I[group]
-      if isinstance( self.I[group], dict ):
-        return self.I[group]['hosts']
+    if group in self.__I:
+      if isinstance( self.__I[group], list):
+        return self.__I[group]
+      if isinstance( self.__I[group], dict ):
+        return self.__I[group]['hosts']
     else:
       return []
 
   def __get_host_groups(self, host):
     'Internal: Returns a list of groups where a host belongs'
     groups = []
-    for g in self.I:
+    for g in self.__I:
       if g == '_meta':
         continue
       if host in self.__get_group_hosts(g):
@@ -123,24 +123,24 @@ class AnsibleInventory:
 
   def __get_group_children(self, group):
     'Internal: Returns the list of subgroups in a group'
-    if group in self.I:
-      if isinstance( self.I[group], dict ) and 'children' in self.I[group]:
-        return self.I[group]['children']
+    if group in self.__I:
+      if isinstance( self.__I[group], dict ) and 'children' in self.__I[group]:
+        return self.__I[group]['children']
     return []
 
   def __set_host_host(self, h_name, host):
     'Sets or replaces a host address for a host'
-    if h_name in self.I['_meta']['hostvars']:
-      self.I['_meta']['hostvars'][h_name]['ansible_host'] = host
+    if h_name in self.__I['_meta']['hostvars']:
+      self.__I['_meta']['hostvars'][h_name]['ansible_host'] = host
     else:
-      self.I['_meta']['hostvars'][h_name] = { 'ansible_host': host }
+      self.__I['_meta']['hostvars'][h_name] = { 'ansible_host': host }
 
   def __set_host_port(self, h_name, port):
     'Sets or replaces a host address for a host'
-    if h_name in self.I['_meta']['hostvars']:
-      self.I['_meta']['hostvars'][h_name]['ansible_port'] = port
+    if h_name in self.__I['_meta']['hostvars']:
+      self.__I['_meta']['hostvars'][h_name]['ansible_port'] = port
     else:
-      self.I['_meta']['hostvars'][h_name] = { 'ansible_port': port }
+      self.__I['_meta']['hostvars'][h_name] = { 'ansible_port': port }
 
   def __parse_var( self, raw_value ):
     'Parses a var and returns a string, a list or a dict'
@@ -153,22 +153,22 @@ class AnsibleInventory:
   @read
   def get_ansible_json(self):
     'Returns the ansible json'
-    return json.dumps( self.I )
+    return json.dumps( self.__I )
 
   @read
   def get_ansible_host_json(self, host):
     'Returns the ansible json for a host'
-    if host in self.I['_meta']['hostvars']:
-      return json.dumps( self.I['_meta']['hostvars'][ host ] )
+    if host in self.__I['_meta']['hostvars']:
+      return json.dumps( self.__I['_meta']['hostvars'][ host ] )
     return json.dumps( {} )
 
   @read
   def list_hosts(self, h_regex='.*'):
     'Returns a list of known hosts in the inventory. If regex specified only matching hosts will be returned'
     hosts = []
-    for g in self.I:
+    for g in self.__I:
       if g == '_meta':
-        for h in self.I['_meta']['hostvars']:
+        for h in self.__I['_meta']['hostvars']:
           if h not in hosts and fullmatch( h_regex, h ):
             hosts.append( h )
       else:
@@ -181,7 +181,7 @@ class AnsibleInventory:
   def list_groups(self, g_regex='.*'):
     'Returns a list of available groups. If g_regex is specified, only matching groups will be returned'
     groups = []
-    for g in self.I:
+    for g in self.__I:
       if g == '_meta':
         continue
       if fullmatch( g_regex, g ):
@@ -192,14 +192,14 @@ class AnsibleInventory:
   def list_vars( self, v_regex='.*' ):
     'Returns a list of variables in the inventory. If regex specified only matching variables will be returned.'
     i_vars = []
-    for g in self.I:
+    for g in self.__I:
       if g == '_meta':
-        for h in self.I['_meta']['hostvars']:
-          for v in self.I['_meta']['hostvars'][ h ]:
+        for h in self.__I['_meta']['hostvars']:
+          for v in self.__I['_meta']['hostvars'][ h ]:
             if v not in i_vars and fullmatch( v_regex, v ):
               i_vars.append( v )
       else:
-        for v in self.I[ g ]['vars']:
+        for v in self.__I[ g ]['vars']:
           if v not in i_vars and fullmatch( v_regex, v ):
             i_vars.append( v )
     return i_vars
@@ -207,10 +207,10 @@ class AnsibleInventory:
   @read
   def get_group_vars(self, group):
     'Returns a dict with the group vars'
-    if group in self.I:
-      if isinstance( self.I[group], dict):
-        if 'vars' in self.I[group]:
-          return self.I[group]['vars']
+    if group in self.__I:
+      if isinstance( self.__I[group], dict):
+        if 'vars' in self.__I[group]:
+          return self.__I[group]['vars']
     return {}
 
   @read
@@ -226,16 +226,16 @@ class AnsibleInventory:
   @read
   def get_group_parent(self, group):
     'Returns the name of a group parent or None if no parent is found'
-    for g in self.I:
-      if isinstance( self.I[g], dict ) and 'children' in self.I[g] and group in self.I[g]['children']:
+    for g in self.__I:
+      if isinstance( self.__I[g], dict ) and 'children' in self.__I[g] and group in self.__I[g]['children']:
         return g
     return None
 
   @read
   def get_host_vars(self, host):
     'Returns a dict with the host vars'
-    if host in self.I['_meta']['hostvars']:
-      return self.I['_meta']['hostvars'][host]
+    if host in self.__I['_meta']['hostvars']:
+      return self.__I['_meta']['hostvars'][host]
     else:
       return {}
 
@@ -280,12 +280,12 @@ class AnsibleInventory:
 
     for h_name in matching_hosts:
       for g_name in matching_groups:
-        if isinstance( self.I[ g_name ], list ):
-          if h_name not in self.I[ g_name ]:
-            self.I[ g_name ].append( h_name )
-        elif isinstance( self.I[ g_name ], dict ):
-          if h_name not in self.I[ g_name ]['hosts']:
-            self.I[ g_name ]['hosts'].append( h_name )
+        if isinstance( self.__I[ g_name ], list ):
+          if h_name not in self.__I[ g_name ]:
+            self.__I[ g_name ].append( h_name )
+        elif isinstance( self.__I[ g_name ], dict ):
+          if h_name not in self.__I[ g_name ]['hosts']:
+            self.__I[ g_name ]['hosts'].append( h_name )
 
   @write
   def add_host(self, h_name, h_host=None, h_port=None ):
@@ -294,8 +294,8 @@ class AnsibleInventory:
     if h_name in self.list_hosts():
       raise AnsibleInventory_Exception('Host %s already exists', h_name)
     else:
-      self.I['all']['hosts'].append( h_name )
-      self.I['_meta']['hostvars'][ h_name ] = {}
+      self.__I['all']['hosts'].append( h_name )
+      self.__I['_meta']['hostvars'][ h_name ] = {}
 
     if h_host:
       self.__set_host_host( h_name, h_host )
@@ -305,8 +305,8 @@ class AnsibleInventory:
   @write
   def add_group(self, group):
     'Adds a group'
-    if group not in self.I:
-      self.I[ group ] = {
+    if group not in self.__I:
+      self.__I[ group ] = {
         'hosts': [],
         'vars': {},
         'children': []
@@ -327,18 +327,18 @@ class AnsibleInventory:
       raise AnsibleInventory_Exception('No group matches your selection')
 
     for g in matching_groups:
-      if isinstance( self.I[g], list):
-        hosts = self.I[g]
-        self.I[g] = {
+      if isinstance( self.__I[g], list):
+        hosts = self.__I[g]
+        self.__I[g] = {
           'hosts': hosts,
           'vars': {},
           'children': []
         }
-      elif isinstance( self.I[g], dict) and 'children' not in self.I[g]:
-        self.I[g]['children'] = []
+      elif isinstance( self.__I[g], dict) and 'children' not in self.__I[g]:
+        self.__I[g]['children'] = []
 
-      if group not in self.I[g]['children']:
-        self.I[g]['children'].append( group )
+      if group not in self.__I[g]['children']:
+        self.__I[g]['children'].append( group )
 
   @write
   def edit_host_vars(self, h_name, callback):
@@ -348,15 +348,15 @@ class AnsibleInventory:
     if h_name not in hosts:
       raise AnsibleInventory_Exception('Host %s does not exist', h_name)
 
-    if h_name in self.I['_meta']['hostvars']:
-      h_vars = self.I['_meta']['hostvars'][h_name]
+    if h_name in self.__I['_meta']['hostvars']:
+      h_vars = self.__I['_meta']['hostvars'][h_name]
     else:
       h_vars = {}
 
     new_vars = callback( h_vars )
 
     if new_vars and isinstance(new_vars, dict):
-      self.I['_meta']['hostvars'][h_name] = new_vars
+      self.__I['_meta']['hostvars'][h_name] = new_vars
 
   @write
   def edit_group_vars(self, g_name, callback):
@@ -366,22 +366,22 @@ class AnsibleInventory:
     if g_name not in groups:
       raise AnsibleInventory_Exception('Group %s does not exist', g_name)
 
-    if isinstance( self.I[g_name], list):
-      hosts = self.I[g_name]
-      self.I[g_name] = {
+    if isinstance( self.__I[g_name], list):
+      hosts = self.__I[g_name]
+      self.__I[g_name] = {
         'hosts': hosts,
         'vars': {},
         'children': []
       }
-    elif isinstance( self.I[g_name], dict) and 'vars' not in self.I[g_name]:
-      self.I[g_name]['vars'] = {}
+    elif isinstance( self.__I[g_name], dict) and 'vars' not in self.__I[g_name]:
+      self.__I[g_name]['vars'] = {}
 
-    g_vars = self.I[g_name]['vars']
+    g_vars = self.__I[g_name]['vars']
 
     new_vars = callback( g_vars )
 
     if new_vars and isinstance(new_vars, dict):
-      self.I[g_name]['vars'] = new_vars
+      self.__I[g_name]['vars'] = new_vars
 
   @write
   def add_var_to_groups(self, v_name, raw_value, g_regex):
@@ -394,18 +394,18 @@ class AnsibleInventory:
     v_value = self.__parse_var( raw_value )
     exist_in = []
     for g in matching_groups:
-      if isinstance( self.I[g], list):
-        hosts = self.I[g]
-        self.I[g] = {
+      if isinstance( self.__I[g], list):
+        hosts = self.__I[g]
+        self.__I[g] = {
           'hosts': hosts,
           'vars': {},
           'children': []
         }
-      elif isinstance( self.I[g], dict) and 'vars' not in self.I[g]:
-        self.I[g]['vars'] = {}
+      elif isinstance( self.__I[g], dict) and 'vars' not in self.__I[g]:
+        self.__I[g]['vars'] = {}
 
-      if v_name not in self.I[g]['vars']:
-        self.I[g]['vars'][v_name] = v_value
+      if v_name not in self.__I[g]['vars']:
+        self.__I[g]['vars'][v_name] = v_value
       else:
         exist_in.append( g )
 
@@ -424,10 +424,10 @@ class AnsibleInventory:
     v_value = self.__parse_var( raw_value )
     exist_in = []
     for h in matching_hosts:
-      if h not in self.I['_meta']['hostvars']:
-        self.I['_meta']['hostvars'][h] = {v_name : v_value}
-      elif v_name not in self.I['_meta']['hostvars'][h]:
-        self.I['_meta']['hostvars'][h][v_name] = v_value
+      if h not in self.__I['_meta']['hostvars']:
+        self.__I['_meta']['hostvars'][h] = {v_name : v_value}
+      elif v_name not in self.__I['_meta']['hostvars'][h]:
+        self.__I['_meta']['hostvars'][h][v_name] = v_value
       else:
         exist_in.append( h )
     if exist_in:
@@ -444,16 +444,16 @@ class AnsibleInventory:
     if h_name not in hosts:
       raise AnsibleInventory_Exception('Host %s does not exist', h_name)
 
-    if h_name in self.I['_meta']['hostvars']:
-      hvars = self.I['_meta']['hostvars'].pop(h_name)
-      self.I['_meta']['hostvars'][new_name] = hvars
+    if h_name in self.__I['_meta']['hostvars']:
+      hvars = self.__I['_meta']['hostvars'].pop(h_name)
+      self.__I['_meta']['hostvars'][new_name] = hvars
     for g in self.__get_host_groups( h_name ):
-      if isinstance( self.I[g], list ):
-        self.I[g].remove( h_name )
-        self.I[g].append( new_name )
-      elif isinstance( self.I[g], dict):
-        self.I[g]['hosts'].remove( h_name )
-        self.I[g]['hosts'].append( new_name )
+      if isinstance( self.__I[g], list ):
+        self.__I[g].remove( h_name )
+        self.__I[g].append( new_name )
+      elif isinstance( self.__I[g], dict):
+        self.__I[g]['hosts'].remove( h_name )
+        self.__I[g]['hosts'].append( new_name )
 
   @write
   def change_host(self, h_name, h_host=None, h_port=None):
@@ -471,48 +471,48 @@ class AnsibleInventory:
     'Renames a variable in a set of hosts matching a regular expression'
     self.next_from_cache()
     for h in self.list_hosts():
-      if fullmatch( h_regex, h ) and h in self.I['_meta']['hostvars'] and v_name in self.I['_meta']['hostvars'][h]:
-        v_value = self.I['_meta']['hostvars'][h].pop(v_name)
-        self.I['_meta']['hostvars'][h][new_name] = v_value
+      if fullmatch( h_regex, h ) and h in self.__I['_meta']['hostvars'] and v_name in self.__I['_meta']['hostvars'][h]:
+        v_value = self.__I['_meta']['hostvars'][h].pop(v_name)
+        self.__I['_meta']['hostvars'][h][new_name] = v_value
 
   @write
   def change_host_var(self, v_name, raw_value, h_regex):
     'Changes the value of a variable in the hosts matching a regular expression in case it is defined'
     self.next_from_cache()
     for h in self.list_hosts():
-      if fullmatch( h_regex, h ) and h in self.I['_meta']['hostvars'] and v_name in self.I['_meta']['hostvars'][h]:
-        self.I['_meta']['hostvars'][h][v_name] = self.__parse_var( raw_value )
+      if fullmatch( h_regex, h ) and h in self.__I['_meta']['hostvars'] and v_name in self.__I['_meta']['hostvars'][h]:
+        self.__I['_meta']['hostvars'][h][v_name] = self.__parse_var( raw_value )
 
   @write
   def rename_group(self, g_name, new_name):
     'Renames a group'
-    if new_name in self.I:
+    if new_name in self.__I:
       raise AnsibleInventory_Exception('Group %s already exists', new_name)
-    if g_name not in self.I:
+    if g_name not in self.__I:
       raise AnsibleInventory_Exception('Group %s does not exist', g_name)
-    g_data = self.I.pop(g_name)
-    self.I[new_name] = g_data
+    g_data = self.__I.pop(g_name)
+    self.__I[new_name] = g_data
 
   @write
   def rename_group_var(self, v_name, new_name, g_regex):
     'Renames a variable in a set of groups matching a regular expression'
-    for g in self.I:
+    for g in self.__I:
       if g == '_meta':
         continue
-      if fullmatch( g_regex, g ) and isinstance( self.I[g], dict) and 'vars' in self.I[g]:
-        if v_name in self.I[g]['vars']:
-          v_value = self.I[g]['vars'].pop(v_name)
-          self.I[g]['vars'][new_name] = v_value
+      if fullmatch( g_regex, g ) and isinstance( self.__I[g], dict) and 'vars' in self.__I[g]:
+        if v_name in self.__I[g]['vars']:
+          v_value = self.__I[g]['vars'].pop(v_name)
+          self.__I[g]['vars'][new_name] = v_value
 
   @write
   def change_group_var(self, v_name, raw_value, g_regex):
     'Changes the value of a variable in the groups matching a regular expression in case it is defined'
-    for g in self.I:
+    for g in self.__I:
       if g == '_meta':
         continue
-      if fullmatch( g_regex, g ) and isinstance( self.I[g], dict) and 'vars' in self.I[g]:
-        if v_name in self.I[g]['vars']:
-          self.I[g]['vars'][v_name] = self.__parse_var( raw_value )
+      if fullmatch( g_regex, g ) and isinstance( self.__I[g], dict) and 'vars' in self.__I[g]:
+        if v_name in self.__I[g]['vars']:
+          self.__I[g]['vars'][v_name] = self.__parse_var( raw_value )
 
   @write
   def remove_host(self, h_name, from_groups=[]):
@@ -521,8 +521,8 @@ class AnsibleInventory:
       groups = from_groups
     else:
       groups = self.__get_host_groups( h_name )
-      if h_name in self.I['_meta']['hostvars']:
-        self.I['_meta']['hostvars'].pop(h_name)
+      if h_name in self.__I['_meta']['hostvars']:
+        self.__I['_meta']['hostvars'].pop(h_name)
     for g in groups:
       g_hosts = self.__get_group_hosts( g )
       if g_hosts and h_name in g_hosts:
@@ -539,23 +539,23 @@ class AnsibleInventory:
     else:
       if g_name == 'all':
         raise AnsibleInventory_Exception('Group %s cannot be removed', 'all')
-      for g in self.I:
+      for g in self.__I:
         g_child = self.__get_group_children( g )
         if g_name in g_child:
           g_child.remove( g_name )
-      if g_name in self.I:
-        self.I.pop( g_name )
+      if g_name in self.__I:
+        self.__I.pop( g_name )
       else:
         raise AnsibleInventory_Exception('Group %s does not exist.', g_name)
 
   @write
   def remove_host_var(self, v_name, h_name ):
     'Removes a variable from a host'
-    if h_name in self.I['_meta']['hostvars'] and v_name in self.I['_meta']['hostvars'][h_name]:
-      self.I['_meta']['hostvars'][h_name].pop( v_name )
+    if h_name in self.__I['_meta']['hostvars'] and v_name in self.__I['_meta']['hostvars'][h_name]:
+      self.__I['_meta']['hostvars'][h_name].pop( v_name )
 
   @write
   def remove_group_var(self, v_name, g_name):
     'Removes a variable from a group'
-    if g_name in self.I and 'vars' in self.I[g_name] and v_name in self.I[g_name]['vars']:
-      self.I[g_name]['vars'].pop( v_name )
+    if g_name in self.__I and 'vars' in self.__I[g_name] and v_name in self.__I[g_name]['vars']:
+      self.__I[g_name]['vars'].pop( v_name )
