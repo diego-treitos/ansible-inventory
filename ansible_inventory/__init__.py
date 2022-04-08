@@ -224,12 +224,13 @@ class AnsibleInventory:
     return self.__get_group_children( group )
 
   @read
-  def get_group_parent(self, group):
-    'Returns the name of a group parent or None if no parent is found'
+  def get_group_parents(self, group):
+    'Returns a list of the group parents of group'
+    g_parents = []
     for g in self.__I:
       if isinstance( self.__I[g], dict ) and 'children' in self.__I[g] and group in self.__I[g]['children']:
-        return g
-    return None
+        g_parents.append(g)
+    return g_parents
 
   @read
   def get_host_vars(self, host):
@@ -492,6 +493,9 @@ class AnsibleInventory:
       raise AnsibleInventory_Exception('Group %s does not exist', g_name)
     g_data = self.__I.pop(g_name)
     self.__I[new_name] = g_data
+    for g_parent in self.get_group_parents( g_name ):
+      self.remove_group( g_name, from_groups=[g_parent] )
+      self.add_group_to_groups( new_name, g_parent )
 
   @write
   def rename_group_var(self, v_name, new_name, g_regex):
