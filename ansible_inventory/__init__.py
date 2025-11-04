@@ -7,10 +7,40 @@ from re import fullmatch
 from ansible_inventory.lib import AnsibleInventory_Exception
 
 
+def inv_write(func):
+  "Decorator for functions that change the inventory. This should grant inventory integrity when several concurrent ansible-inventory sessions"
+  def wrapper(_self, *args, **kwargs):
+    try:
+      _self.backend.lock()
+      _self.reload()
+      r = func(_self, *args, **kwargs)
+      _self.save()
+      return r
+    except BlockingIOError:
+      raise AnsibleInventory_Exception("Backend temporally unavailable. Please try again.")
+    except AnsibleInventory_Exception:
+      raise
+    finally:
+      _self.backend.unlock()
+  return wrapper
+
+def inv_read(func):
+  "Decorator for functions that read, so they use they have the most updated information in case of several concurrent ansible-inventory sessions"
+  def wrapper(_self, *kargs, **kwargs):
+    try:
+      if _self.from_cache:
+        _self.from_cache = False
+        _self.reload()
+      return func(_self, *kargs, **kwargs)
+    except Exception as e:
+      raise AnsibleInventory_Exception( e.__str__() )
+  return wrapper
+
+
 class AnsibleInventory:
 
   # Inventory variable
-  __I = None
+  __I: dict
 
 ### Internal inventory format
 #{
@@ -40,57 +70,28 @@ class AnsibleInventory:
 #    }
 #}
 
-  def write(f):
-    "Decorator for functions that change the inventory. This should grant inventory integrity when several concurrent ansible-inventory sessions"
-    def wrapper(self, *args, **kwargs):
-      try:
-        self.backend.lock()
-        self.reload()
-        r = f(self, *args, **kwargs)
-        self.save()
-        return r
-      except BlockingIOError:
-        raise AnsibleInventory_Exception("Backend temporally unavailable. Please try again.")
-      except AnsibleInventory_Exception:
-        raise
-      finally:
-        self.backend.unlock()
-
-    return wrapper
-
-  def read(f):
-    "Decorator for functions that read, so they use they have the most updated information in case of several concurrent ansible-inventory sessions"
-    def wrapper(self, *kargs, **kwargs):
-      try:
-        if self.__from_cache:
-          self.__from_cache = False
-          self.reload()
-        return f(self, *kargs, **kwargs)
-      except Exception as e:
-        raise AnsibleInventory_Exception( e.__str__() )
-    return wrapper
-
   def __init__(self, backend):
     self.backend = backend
     self.reload()
-    self.__from_cache = False
+    self.from_cache = False
 
-  def next_from_cache( self ):
+  def next_from_cache(self):
     'This function can be called before calling any "read" method so it does not refresh the inventory from the backend'
-    self.__from_cache = True
+    self.from_cache = True
 
   def __ensure_inventory_skel(self):
     'Ensures the basic structure of the inventory is pressent'
-    if '_meta' not in self.__I:
-      self.__I['_meta'] = {}
-    if 'all' not in self.__I:
-      self.__I['all'] = {
-        'children': [],
-        'hosts': [],
-        'vars': {}
-      }
-    if 'hostvars' not in self.__I['_meta']:
-      self.__I['_meta']['hostvars'] = {}
+    if self.__I:
+      if '_meta' not in self.__I:
+        self.__I['_meta'] = {}
+      if 'all' not in self.__I:
+        self.__I['all'] = {
+          'children': [],
+          'hosts': [],
+          'vars': {}
+        }
+      if 'hostvars' not in self.__I['_meta']:
+        self.__I['_meta']['hostvars'] = {}
 
   def save(self):
     "Saves the inventory to persistence backend"
@@ -150,19 +151,19 @@ class AnsibleInventory:
       v_value = raw_value
     return v_value
 
-  @read
+  @inv_read
   def get_ansible_json(self):
     'Returns the ansible json'
     return json.dumps( self.__I )
 
-  @read
+  @inv_read
   def get_ansible_host_json(self, host):
     'Returns the ansible json for a host'
     if host in self.__I['_meta']['hostvars']:
       return json.dumps( self.__I['_meta']['hostvars'][ host ] )
     return json.dumps( {} )
 
-  @read
+  @inv_read
   def list_hosts(self, h_regex='.*'):
     'Returns a list of known hosts in the inventory. If regex specified only matching hosts will be returned'
     hosts = []
@@ -172,12 +173,14 @@ class AnsibleInventory:
           if h not in hosts and fullmatch( h_regex, h ):
             hosts.append( h )
       else:
-        for h in self.__get_group_hosts( g ):
-          if h not in hosts and fullmatch( h_regex, h ):
-            hosts.append( h )
+        h_list = self.__get_group_hosts( g )
+        if h_list:
+          for h in h_list:
+            if h not in hosts and fullmatch( h_regex, h ):
+              hosts.append( h )
     return hosts
 
-  @read
+  @inv_read
   def list_groups(self, g_regex='.*'):
     'Returns a list of available groups. If g_regex is specified, only matching groups will be returned'
     groups = []
@@ -188,7 +191,7 @@ class AnsibleInventory:
         groups.append(g)
     return groups
 
-  @read
+  @inv_read
   def list_vars( self, v_regex='.*' ):
     'Returns a list of variables in the inventory. If regex specified only matching variables will be returned.'
     i_vars = []
@@ -204,7 +207,7 @@ class AnsibleInventory:
             i_vars.append( v )
     return i_vars
 
-  @read
+  @inv_read
   def get_group_vars(self, group):
     'Returns a dict with the group vars'
     if group in self.__I:
@@ -213,17 +216,17 @@ class AnsibleInventory:
           return self.__I[group]['vars']
     return {}
 
-  @read
+  @inv_read
   def get_group_hosts(self, group):
     'Returns a list of hosts in a group'
     return self.__get_group_hosts( group )
 
-  @read
+  @inv_read
   def get_group_children(self, group):
     'Returns the list of subgroups in a group'
     return self.__get_group_children( group )
 
-  @read
+  @inv_read
   def get_group_parents(self, group):
     'Returns a list of the group parents of group'
     g_parents = []
@@ -232,7 +235,7 @@ class AnsibleInventory:
         g_parents.append(g)
     return g_parents
 
-  @read
+  @inv_read
   def get_host_vars(self, host):
     'Returns a dict with the host vars'
     if host in self.__I['_meta']['hostvars']:
@@ -240,12 +243,12 @@ class AnsibleInventory:
     else:
       return {}
 
-  @read
+  @inv_read
   def get_host_groups(self, host):
     'Returns a list of groups where a host belongs'
     return self.__get_host_groups( host )
 
-  @read
+  @inv_read
   def assert_host_var(self, host, v_name, v_value_regex ):
     'Checks if a host has a variable with v_name with a matching value of v_value_regex'
     self.next_from_cache()
@@ -254,7 +257,7 @@ class AnsibleInventory:
       return True
     return False
 
-  @read
+  @inv_read
   def assert_group_var(self, group, v_name, v_value_regex ):
     'Checks if a group has a variable with v_name with a matching value of v_value_regex'
     self.next_from_cache()
@@ -263,7 +266,7 @@ class AnsibleInventory:
       return True
     return False
 
-  @write
+  @inv_write
   def add_hosts_to_groups(self, h_regex, g_regex_list):
     'Adds a hosts matching h_regex to groups matching g_regex from a list'
     self.next_from_cache()
@@ -288,7 +291,7 @@ class AnsibleInventory:
           if h_name not in self.__I[ g_name ]['hosts']:
             self.__I[ g_name ]['hosts'].append( h_name )
 
-  @write
+  @inv_write
   def add_host(self, h_name, h_host=None, h_port=None ):
     'Adds a host'
     self.next_from_cache()
@@ -303,7 +306,7 @@ class AnsibleInventory:
     if h_port:
       self.__set_host_port( h_name, h_port )
 
-  @write
+  @inv_write
   def add_group(self, group):
     'Adds a group'
     if group not in self.__I:
@@ -315,7 +318,7 @@ class AnsibleInventory:
     else:
       raise AnsibleInventory_Exception('Group %s already exists', group)
 
-  @write
+  @inv_write
   def add_group_to_groups(self, group, g_regex):
     'Adds a single group to groups matching g_regex'
     self.next_from_cache()
@@ -341,7 +344,7 @@ class AnsibleInventory:
       if group not in self.__I[g]['children']:
         self.__I[g]['children'].append( group )
 
-  @write
+  @inv_write
   def edit_host_vars(self, h_name, callback):
     'Edits host vars by calling "callback( vars_dict )". It locks the inventory until callback returns with a new "vars_dict" with the new vars.'
     self.next_from_cache()
@@ -359,7 +362,7 @@ class AnsibleInventory:
     if new_vars and isinstance(new_vars, dict):
       self.__I['_meta']['hostvars'][h_name] = new_vars
 
-  @write
+  @inv_write
   def edit_group_vars(self, g_name, callback):
     'Edits group vars by calling "callback( vars_dict )". It locks the inventory until callback returns with a new "vars_dict" with the new vars.'
     self.next_from_cache()
@@ -384,7 +387,7 @@ class AnsibleInventory:
     if new_vars and isinstance(new_vars, dict):
       self.__I[g_name]['vars'] = new_vars
 
-  @write
+  @inv_write
   def add_var_to_groups(self, v_name, raw_value, g_regex):
     'Adds a variable a to groups matching g_regex'
     self.next_from_cache()
@@ -414,7 +417,7 @@ class AnsibleInventory:
       str_list = '%s ' * exist_in.__len__()
       raise AnsibleInventory_Exception('Var %s already exist in these groups: '+str_list, targets=(v_name,)+tuple( exist_in ) )
 
-  @write
+  @inv_write
   def add_var_to_hosts(self, v_name, raw_value, h_regex):
     'Adds a variable to hosts matching h_regex'
     self.next_from_cache()
@@ -435,7 +438,7 @@ class AnsibleInventory:
       str_list = '%s ' * exist_in.__len__()
       raise AnsibleInventory_Exception('Var %s already exist in these hosts: '+str_list, targets=(v_name,)+tuple( exist_in ) )
 
-  @write
+  @inv_write
   def rename_host(self, h_name, new_name):
     'Renames a host'
     self.next_from_cache()
@@ -456,7 +459,7 @@ class AnsibleInventory:
         self.__I[g]['hosts'].remove( h_name )
         self.__I[g]['hosts'].append( new_name )
 
-  @write
+  @inv_write
   def change_host(self, h_name, h_host=None, h_port=None):
     'Changes the host address or port of a host'
     self.next_from_cache()
@@ -467,7 +470,7 @@ class AnsibleInventory:
     if h_port:
       self.__set_host_port( h_name, h_port )
 
-  @write
+  @inv_write
   def rename_host_var(self, v_name, new_name, h_regex):
     'Renames a variable in a set of hosts matching a regular expression'
     self.next_from_cache()
@@ -476,7 +479,7 @@ class AnsibleInventory:
         v_value = self.__I['_meta']['hostvars'][h].pop(v_name)
         self.__I['_meta']['hostvars'][h][new_name] = v_value
 
-  @write
+  @inv_write
   def change_host_var(self, v_name, raw_value, h_regex):
     'Changes the value of a variable in the hosts matching a regular expression in case it is defined'
     self.next_from_cache()
@@ -484,7 +487,7 @@ class AnsibleInventory:
       if fullmatch( h_regex, h ) and h in self.__I['_meta']['hostvars'] and v_name in self.__I['_meta']['hostvars'][h]:
         self.__I['_meta']['hostvars'][h][v_name] = self.__parse_var( raw_value )
 
-  @write
+  @inv_write
   def rename_group(self, g_name, new_name):
     'Renames a group'
     if new_name in self.__I:
@@ -497,7 +500,7 @@ class AnsibleInventory:
       self.remove_group( g_name, from_groups=[g_parent] )
       self.add_group_to_groups( new_name, g_parent )
 
-  @write
+  @inv_write
   def rename_group_var(self, v_name, new_name, g_regex):
     'Renames a variable in a set of groups matching a regular expression'
     for g in self.__I:
@@ -508,7 +511,7 @@ class AnsibleInventory:
           v_value = self.__I[g]['vars'].pop(v_name)
           self.__I[g]['vars'][new_name] = v_value
 
-  @write
+  @inv_write
   def change_group_var(self, v_name, raw_value, g_regex):
     'Changes the value of a variable in the groups matching a regular expression in case it is defined'
     for g in self.__I:
@@ -518,7 +521,7 @@ class AnsibleInventory:
         if v_name in self.__I[g]['vars']:
           self.__I[g]['vars'][v_name] = self.__parse_var( raw_value )
 
-  @write
+  @inv_write
   def remove_host(self, h_name, from_groups=[]):
     'Removes the selected host. If from_groups is provided, the host will only removed from those groups.'
     if from_groups:
@@ -532,7 +535,7 @@ class AnsibleInventory:
       if g_hosts and h_name in g_hosts:
         g_hosts.remove( h_name )
 
-  @write
+  @inv_write
   def remove_group(self, g_name, from_groups=[]):
     'Removes the selected group. If from_groups is provided, the group will only removed from those groups.'
     if from_groups:
@@ -552,13 +555,13 @@ class AnsibleInventory:
       else:
         raise AnsibleInventory_Exception('Group %s does not exist.', g_name)
 
-  @write
+  @inv_write
   def remove_host_var(self, v_name, h_name ):
     'Removes a variable from a host'
     if h_name in self.__I['_meta']['hostvars'] and v_name in self.__I['_meta']['hostvars'][h_name]:
       self.__I['_meta']['hostvars'][h_name].pop( v_name )
 
-  @write
+  @inv_write
   def remove_group_var(self, v_name, g_name):
     'Removes a variable from a group'
     if g_name in self.__I and 'vars' in self.__I[g_name] and v_name in self.__I[g_name]['vars']:
