@@ -1,3 +1,11 @@
+v0.6.7 - Nov 05, 2025
+---------------------
+
+- Fixed group renaming (for real)
+- Eliminating confirmation when using --batch
+- Some linting fixes
+
+
 v0.6.4 - Apr 08, 2022
 ---------------------
 
