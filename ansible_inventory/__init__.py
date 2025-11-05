@@ -143,6 +143,50 @@ class AnsibleInventory:
     else:
       self.__I['_meta']['hostvars'][h_name] = { 'ansible_port': port }
 
+  def __remove_group(self, g_name, from_groups=[]):
+    'Removes the selected group. If from_groups is provided, the group will only removed from those groups.'
+    if from_groups:
+      for g in from_groups:
+        g_child = self.__get_group_children( g )
+        if g_name in g_child:
+          g_child.remove( g_name )
+    else:
+      if g_name == 'all':
+        raise AnsibleInventory_Exception('Group %s cannot be removed', 'all')
+      for g in self.__I:
+        g_child = self.__get_group_children( g )
+        if g_name in g_child:
+          g_child.remove( g_name )
+      if g_name in self.__I:
+        self.__I.pop( g_name )
+      else:
+        raise AnsibleInventory_Exception('Group %s does not exist.', g_name)
+
+  def __add_group_to_groups(self, group, g_regex):
+    'Adds a single group to groups matching g_regex'
+    self.next_from_cache()
+    if group not in self.list_groups():
+      raise AnsibleInventory_Exception('Group %s does not exist', targets=group)
+
+    self.next_from_cache()
+    matching_groups = self.list_groups( g_regex )
+    if not matching_groups:
+      raise AnsibleInventory_Exception('No group matches your selection')
+
+    for g in matching_groups:
+      if isinstance( self.__I[g], list):
+        hosts = self.__I[g]
+        self.__I[g] = {
+          'hosts': hosts,
+          'vars': {},
+          'children': []
+        }
+      elif isinstance( self.__I[g], dict) and 'children' not in self.__I[g]:
+        self.__I[g]['children'] = []
+
+      if group not in self.__I[g]['children']:
+        self.__I[g]['children'].append( group )
+
   def __parse_var( self, raw_value ):
     'Parses a var and returns a string, a list or a dict'
     try:
@@ -321,28 +365,7 @@ class AnsibleInventory:
   @inv_write
   def add_group_to_groups(self, group, g_regex):
     'Adds a single group to groups matching g_regex'
-    self.next_from_cache()
-    if group not in self.list_groups():
-      raise AnsibleInventory_Exception('Group %s does not exist', targets=group)
-
-    self.next_from_cache()
-    matching_groups = self.list_groups( g_regex )
-    if not matching_groups:
-      raise AnsibleInventory_Exception('No group matches your selection')
-
-    for g in matching_groups:
-      if isinstance( self.__I[g], list):
-        hosts = self.__I[g]
-        self.__I[g] = {
-          'hosts': hosts,
-          'vars': {},
-          'children': []
-        }
-      elif isinstance( self.__I[g], dict) and 'children' not in self.__I[g]:
-        self.__I[g]['children'] = []
-
-      if group not in self.__I[g]['children']:
-        self.__I[g]['children'].append( group )
+    return self.__add_group_to_groups(group, g_regex)
 
   @inv_write
   def edit_host_vars(self, h_name, callback):
@@ -496,9 +519,10 @@ class AnsibleInventory:
       raise AnsibleInventory_Exception('Group %s does not exist', g_name)
     g_data = self.__I.pop(g_name)
     self.__I[new_name] = g_data
+    self.save()
     for g_parent in self.get_group_parents( g_name ):
-      self.remove_group( g_name, from_groups=[g_parent] )
-      self.add_group_to_groups( new_name, g_parent )
+      self.__remove_group( g_name, from_groups=[g_parent] )
+      self.__add_group_to_groups( new_name, g_parent )
 
   @inv_write
   def rename_group_var(self, v_name, new_name, g_regex):
@@ -538,22 +562,7 @@ class AnsibleInventory:
   @inv_write
   def remove_group(self, g_name, from_groups=[]):
     'Removes the selected group. If from_groups is provided, the group will only removed from those groups.'
-    if from_groups:
-      for g in from_groups:
-        g_child = self.__get_group_children( g )
-        if g_name in g_child:
-          g_child.remove( g_name )
-    else:
-      if g_name == 'all':
-        raise AnsibleInventory_Exception('Group %s cannot be removed', 'all')
-      for g in self.__I:
-        g_child = self.__get_group_children( g )
-        if g_name in g_child:
-          g_child.remove( g_name )
-      if g_name in self.__I:
-        self.__I.pop( g_name )
-      else:
-        raise AnsibleInventory_Exception('Group %s does not exist.', g_name)
+    return self.__remove_group(g_name, from_groups)
 
   @inv_write
   def remove_host_var(self, v_name, h_name ):
