@@ -19,7 +19,7 @@ from ansible_inventory.globals import VERSION as AI_VERSION, AUTHOR_NAME as AI_A
 #NOTE: Requires: fakeroot, alien, dpkg-buildpackage
 
 #-- GOBAL VARS --
-NAME         = "ansible-inventory"
+NAME         = "ansible_inventory"
 VERSION      = AI_VERSION
 AUTHOR       = AI_AUTHOR
 AUTHOR_EMAIL = AI_AUTHOR_EMAIL
