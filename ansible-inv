@@ -94,7 +94,7 @@ if __name__ == '__main__':
   if args.command:
     config.use_colors = False
     cmd = args.command
-    console.onecmd( cmd )
+    console.onecmd( cmd, skip_confirm=True )
     sys.exit( 0 )
 
   # Main console loop

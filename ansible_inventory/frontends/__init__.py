@@ -59,6 +59,8 @@ class AnsibleInventory_Console(cmd.Cmd):
 
     self.history_file = config.history_file
 
+    self.__skip_confirm = False
+
     self.color = AnsibleInventory_Color( config )
     self.C = self.color.color
 
@@ -289,6 +291,8 @@ class AnsibleInventory_Console(cmd.Cmd):
     print('')
 
   def __confirm(self, msg):
+    if self.__skip_confirm:
+      return True
     if self.color.use_colors:
       print(self.color.BASE+"·   "+self.color.INFO+'confirm '+self.color.BASE+msg+' [N/y]: '+self.color.RESET, end='')
     else:
@@ -1169,3 +1173,7 @@ class AnsibleInventory_Console(cmd.Cmd):
           return [ completions[0] + ' ' ]
 
     return completions
+
+  def onecmd(self, line, skip_confirm=False):
+    self.__skip_confirm=skip_confirm
+    return super(AnsibleInventory_Console, self).onecmd(line)
