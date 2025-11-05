@@ -5,9 +5,7 @@ trap "exit 1" USR2
 export TOP_PID=$$
 
 ANSIBLE_HOME="$HOME/.ansible"
-
 [ ! -d "$ANSIBLE_HOME" ] && mkdir "$ANSIBLE_HOME"
-
 
 prepare() {
     # Copy config file
@@ -27,26 +25,24 @@ exec_cmd() {
     echo "$output"
     echo
 
-    echo "$output" | egrep -q '\^   error' && return 1
-    echo "$output" | egrep -q '*** Unknown syntax:' && return 1
+    echo "$output" | grep -Eq '\^   error' && return 1
+    echo "$output" | grep -Eq '\*\*\* Unknown syntax:' && return 1
 
     return "$retcode"
 }
 
 run_test(){
-    exec_cmd $*
-    [ "$?" != "0" ] && do_exit 1
+    exec_cmd "$@" || do_exit 1
 }
 
 do_exit(){
     rm -f "/tmp/ansible_test_inventory.json"
-    if [ $1 == 0 ]; then
+    if [ "$1" == "0" ]; then
         kill -s USR1 $TOP_PID
     else
         kill -s USR2 $TOP_PID
     fi
 }
-
 
 
 ai_tests=(
@@ -93,11 +89,10 @@ ai_tests=(
     'del group vp1.*|vp2.*'
 )
 
-
 prepare
 
 for test in "${ai_tests[@]}"; do
-    echo "y" | run_test "$test"
+    run_test "$test"
 done
 
 do_exit 0
